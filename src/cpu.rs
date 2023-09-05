@@ -110,7 +110,7 @@ impl Cpu {
     */
     pub fn exexute(&mut self, memory: &mut Memory, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
         match self.current_opcode {
-            0x00 => Cpu::nop(machine_cycle),                                                            //NOP
+            0x00 => Cpu::nop(machine_cycle),                                                                                //NOP
             0x01 => Cpu::ld_r16_u16(memory, &mut self.b, &mut self.c, &mut self.pc, machine_cycle),     //LD_BC_U16
             0x02 => Cpu::ld_r16_a(memory, self.a, self.b, self.c, machine_cycle),                       //LD_BC_A
             0x03 => Cpu::inc_r16(&mut self.b, &mut self.c, machine_cycle),                              //INC_BC
@@ -132,7 +132,7 @@ impl Cpu {
             0x13 => Cpu::inc_r16(&mut self.d, &mut self.e, machine_cycle),                              //INC_DE
             0x14 => Cpu::inc_r8(&mut self.f, &mut self.d, machine_cycle),                               //INC_D
             0x15 => Cpu::dec_r8(&mut self.f, &mut self.d, machine_cycle),                               //DEC_D
-            0x16 => Cpu::ld_r8_u8(memory, &mut self.d, &mut self.pc, machine_cycle),                    //LD_D_U8
+            0x16 => Cpu::ld_r8_u8(memory, &mut self.d, &mut self.pc, machine_cycle),                              //LD_D_U8
             0x17 => Cpu::rla(&mut self.f, &mut self.a, machine_cycle),                                  //RLA
             0x18 => Cpu::jr_i8(memory, &mut self.pc, machine_cycle, temp_reg),                          //JR_i8
             0x19 => Cpu::add_hl_r16(&mut self.f, &mut self.d, &mut self.e, &mut self.h, &mut self.l, machine_cycle),    //ADD_HL_DE
@@ -140,12 +140,12 @@ impl Cpu {
             0x1B => Cpu::dec_r16(&mut self.d, &mut self.e, machine_cycle),                              //DEC_DE
             0x1C => Cpu::inc_r8(&mut self.f, &mut self.e, machine_cycle),                               //INC_E
             0x1D => Cpu::dec_r8(&mut self.f, &mut self.e, machine_cycle),                               //DEC_E
-            0x1E => Cpu::ld_r8_u8(memory, &mut self.e, &mut self.pc, machine_cycle),                    //LD_E_U8
+            0x1E => Cpu::ld_r8_u8(memory, &mut self.e, &mut self.pc, machine_cycle),                              //LD_E_U8
             0x1F => Cpu::rra(&mut self.f, &mut self.a, machine_cycle),                                  //RRA
-            /*0x20 => self.jr_cc_i8(memory, !self.get_zero_flag()),
-            0x21 => self.ld_r16_u16(memory, Register::H, Register::L),
-            0x22 => self.ld_hli_a(memory),
-            0x23 => self.inc_r16(Register::H, Register::L),
+            0x20 => Cpu::jr_cc_i8(memory, &mut self.pc, !Cpu::get_zero_flag(self.f), machine_cycle, temp_reg)   ,           //JR_NZ_I8                                        
+            0x21 => Cpu::ld_r16_u16(memory, &mut self.h, &mut self.l, &mut self.pc, machine_cycle),       //LD_HL_U16
+            0x22 => Cpu::ld_hli_a(memory),
+             /*0x23 => self.inc_r16(Register::H, Register::L),
             0x24 => self.inc_r8(Register::H),
             0x25 => self.dec_r8(Register::H),
             0x26 => self.ld_r8_u8(memory, Register::H),
@@ -706,7 +706,7 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    pub fn rra(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rra(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
         match machine_cycle {
             1 => {
                 Cpu::set_flags(flag_reg, Some(false), Some(false), Some(false), Some(binary_utils::get_bit(*reg_a, 0) != 0));
@@ -717,7 +717,62 @@ impl Cpu {
         return ExecuteStatus::Completed;
     }
 
+    /**
+     * Relative Jump by i8 if condition cc is met.
+     * 
+     * MACHINE CYCLES: 3 IF TAKEN/ 2 IF NOT TAKEN
+     * INSTRUCTION LENGTH: 2
+     */
+    fn jr_cc_i8(memory: &Memory, pc: &mut u16, condition: bool, machine_cycle: u8, temp_reg: &mut u16)  -> ExecuteStatus {
+        let mut status = ExecuteStatus::Running;
+        match machine_cycle {
+            1 => { 
+                *temp_reg = memory.read_byte(*pc) as u16; 
+                *pc += 1; 
+                if !condition {
+                    status = ExecuteStatus::Completed;
+                }
+            },
+            2 => {
+                *pc = (*pc).wrapping_add_signed(*temp_reg as i16);
+                status = ExecuteStatus::Completed;
+            },
+            _ => panic!("1 to many machine cycles in jr_cc_i8"),
+        }
+        return status;
+    }
 
+    /**
+     * Store value in register A into the byte pointed by HL and increment HL afterwards.
+     * 
+     * MACHINE CYCLES: 2
+     * INSTRUCTION LENGTH: 1
+     */
+    pub fn ld_hli_a(memory: &mut Memory, machine_cycle: u8) {
+        
+        memory.write_byte(self.hl(), self.a);
+        self.set_hl(self.hl() + 1);
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    fn get_zero_flag(flag_reg: u8) -> bool {
+        ((flag_reg >> 7) & 0x1) != 0
+    }
 
 
 
