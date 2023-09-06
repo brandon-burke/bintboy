@@ -1,7 +1,7 @@
 use crate::memory::Memory;
 use crate::cpu_state::{CpuState, ExecuteStatus};
 use crate::opcodes::{OPCODE_MACHINE_CYCLES, PREFIX_OPCODE_MACHINE_CYCLES};
-use crate::binary_utils;
+use crate::binary_utils::{self, split_16bit_num};
 
 const MACHINE_CYCLE: u8 = 4;
 const PREFIX_OPCODE: u8 = 0xCB;
@@ -144,13 +144,13 @@ impl Cpu {
             0x1F => Cpu::rra(&mut self.f, &mut self.a, machine_cycle),                                  //RRA
             0x20 => Cpu::jr_cc_i8(memory, &mut self.pc, !Cpu::get_zero_flag(self.f), machine_cycle, temp_reg)   ,           //JR_NZ_I8                                        
             0x21 => Cpu::ld_r16_u16(memory, &mut self.h, &mut self.l, &mut self.pc, machine_cycle),       //LD_HL_U16
-            0x22 => Cpu::ld_hli_a(memory),
-             /*0x23 => self.inc_r16(Register::H, Register::L),
-            0x24 => self.inc_r8(Register::H),
-            0x25 => self.dec_r8(Register::H),
-            0x26 => self.ld_r8_u8(memory, Register::H),
-            0x27 => self.daa(),
-            0x28 => self.jr_cc_i8(memory, self.get_zero_flag()),
+            0x22 => Cpu::ld_hli_a(memory, &mut self.a, &mut self.h, &mut self.l, machine_cycle),          //LD_HLI_A
+            0x23 => Cpu::inc_r16(&mut self.h, &mut self.l, machine_cycle),                                //INC_HL
+            0x24 => Cpu::inc_r8(&mut self.f, &mut self.h, machine_cycle),                                   //INC_H
+            0x25 => Cpu::dec_r8(&mut self.f, &mut self.h, machine_cycle),                                   //DEC_H
+            0x26 => Cpu::ld_r8_u8(memory, &mut self.h, &mut self.pc, machine_cycle),                        //LD_H_U8
+            0x27 => Cpu::daa(), 
+            /*0x28 => self.jr_cc_i8(memory, self.get_zero_flag()),
             0x29 => self.add_hl_r16(Register::H, Register::L),
             0x2A => self.ld_a_hli(memory),
             0x2B => self.dec_r16(Register::H, Register::L),
@@ -419,10 +419,6 @@ impl Cpu {
         }
     }
 
-    pub fn get_carry_flag(flag_reg: u8) -> u8 {
-        binary_utils::get_bit(flag_reg, 4)
-    }
-
     /**
      * Does absolutely nothing but consume a machine cycle and increment the pc
      * 
@@ -444,17 +440,16 @@ impl Cpu {
      * INSTRUCTION LENGTH: 3
      */
     fn ld_r16_u16(memory: &Memory, upper_reg: &mut u8, lower_reg: &mut u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
-        let mut status = ExecuteStatus::Running;
         match machine_cycle {
             1 => *lower_reg = memory.read_byte(*pc),
             2 => { 
                 *upper_reg = memory.read_byte(*pc); 
-                status = ExecuteStatus::Completed; 
+                return ExecuteStatus::Completed; 
             },
             _ => panic!("1 to many cycles on ld_r16_u16"),
         }
         *pc += 1;
-        return status;
+        return ExecuteStatus::Running;
     }
 
     /**
@@ -748,12 +743,46 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    pub fn ld_hli_a(memory: &mut Memory, machine_cycle: u8) {
-        
-        memory.write_byte(self.hl(), self.a);
-        self.set_hl(self.hl() + 1);
+    fn ld_hli_a(memory: &mut Memory, reg_a: &mut u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => {
+                let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
+                memory.write_byte(reg_hl, *reg_a);
+
+                let (upper_byte, lower_byte) = split_16bit_num(reg_hl + 1);
+                *reg_h = upper_byte;
+                *reg_l = lower_byte;
+            },
+            _ => panic!("1 to many machine cycles in ld_hli_a")
+        }
+        return ExecuteStatus::Completed;
     }
 
+    /**
+     * Decimal Adjust Accumulator to get a correct BCD representation after an arithmetic instruction.
+     * 
+     * MACHINE CYCLES: 1
+     * INSTRUCTION LENGTH: 1
+     */
+    pub fn daa(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+        if !Cpu::get_negative_flag(*flag_reg) {
+            if Cpu::get_carry_flag(*flag_reg) || *reg_a > 0x99 {
+                *reg_a += 0x60;
+                self.set_carry_flag();
+            }
+            if self.get_half_carry_flag() != 0 || self.a & 0x0F > 0x09 {
+                self.a += 0x6;
+            }
+        }
+
+        if self.a == 0 {
+            self.set_zero_flag();
+        } else {
+            self.reset_zero_flag();
+        }
+
+        self.reset_half_carry_flag();
+    }
 
 
 
@@ -774,7 +803,17 @@ impl Cpu {
         ((flag_reg >> 7) & 0x1) != 0
     }
 
+    fn get_negative_flag(flag_reg: u8) -> bool {
+        ((flag_reg >> 6) & 0x1) != 0
+    }
 
+    fn get_half_carry_flag(flag_reg: u8) -> bool {
+        ((flag_reg >> 5) & 0x1) != 0
+    }
+
+    fn get_carry_flag(flag_reg: u8) -> bool {
+        ((flag_reg >> 4) & 0x1) != 0
+    }
 
 
 
