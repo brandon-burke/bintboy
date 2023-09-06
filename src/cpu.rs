@@ -119,7 +119,7 @@ impl Cpu {
             0x06 => Cpu::ld_r8_u8(memory, &mut self.b, &mut self.pc, machine_cycle),                    //LD_B_U8
             0x07 => Cpu::rlca(&mut self.f, &mut self.a, machine_cycle),                                 //RLCA
             0x08 => Cpu::ld_u16_sp(memory, &mut self.pc, self.sp, machine_cycle, temp_reg),             //LD_U16_SP
-            0x09 => Cpu::add_hl_r16(&mut self.f, &mut self.b, &mut self.c, &mut self.h, &mut self.l, machine_cycle),  //ADD_HL_BC may not be the most cycle accurate
+            0x09 => Cpu::add_hl_r16(&mut self.f, self.b, self.c, &mut self.h, &mut self.l, machine_cycle),  //ADD_HL_BC may not be the most cycle accurate
             0x0A => Cpu::ld_a_r16(memory, &mut self.a, self.b, self.c, machine_cycle),                  //LD_A_(BC)
             0x0B => Cpu::dec_r16(&mut self.b, &mut self.c, machine_cycle),                              //DEC_BC may not be the most accurate in cycles,
             0x0C => Cpu::inc_r8(&mut self.f, &mut self.c, machine_cycle),                               //INC_C
@@ -135,35 +135,35 @@ impl Cpu {
             0x16 => Cpu::ld_r8_u8(memory, &mut self.d, &mut self.pc, machine_cycle),                              //LD_D_U8
             0x17 => Cpu::rla(&mut self.f, &mut self.a, machine_cycle),                                  //RLA
             0x18 => Cpu::jr_i8(memory, &mut self.pc, machine_cycle, temp_reg),                          //JR_i8
-            0x19 => Cpu::add_hl_r16(&mut self.f, &mut self.d, &mut self.e, &mut self.h, &mut self.l, machine_cycle),    //ADD_HL_DE
+            0x19 => Cpu::add_hl_r16(&mut self.f, self.d, self.e, &mut self.h, &mut self.l, machine_cycle),    //ADD_HL_DE
             0x1A => Cpu::ld_a_r16(memory, &mut self.a, self.d, self.e, machine_cycle),                  //LD_A_R16
             0x1B => Cpu::dec_r16(&mut self.d, &mut self.e, machine_cycle),                              //DEC_DE
             0x1C => Cpu::inc_r8(&mut self.f, &mut self.e, machine_cycle),                               //INC_E
             0x1D => Cpu::dec_r8(&mut self.f, &mut self.e, machine_cycle),                               //DEC_E
             0x1E => Cpu::ld_r8_u8(memory, &mut self.e, &mut self.pc, machine_cycle),                              //LD_E_U8
             0x1F => Cpu::rra(&mut self.f, &mut self.a, machine_cycle),                                  //RRA
-            0x20 => Cpu::jr_cc_i8(memory, &mut self.pc, !Cpu::get_zero_flag(self.f), machine_cycle, temp_reg)   ,           //JR_NZ_I8                                        
+            0x20 => Cpu::jr_cc_i8(memory, &mut self.pc, Cpu::get_zero_flag(self.f) != 0, machine_cycle, temp_reg),           //JR_NZ_I8                                        
             0x21 => Cpu::ld_r16_u16(memory, &mut self.h, &mut self.l, &mut self.pc, machine_cycle),       //LD_HL_U16
             0x22 => Cpu::ld_hli_a(memory, &mut self.a, &mut self.h, &mut self.l, machine_cycle),          //LD_HLI_A
             0x23 => Cpu::inc_r16(&mut self.h, &mut self.l, machine_cycle),                                //INC_HL
             0x24 => Cpu::inc_r8(&mut self.f, &mut self.h, machine_cycle),                                   //INC_H
             0x25 => Cpu::dec_r8(&mut self.f, &mut self.h, machine_cycle),                                   //DEC_H
             0x26 => Cpu::ld_r8_u8(memory, &mut self.h, &mut self.pc, machine_cycle),                        //LD_H_U8
-            0x27 => Cpu::daa(), 
-            /*0x28 => self.jr_cc_i8(memory, self.get_zero_flag()),
-            0x29 => self.add_hl_r16(Register::H, Register::L),
-            0x2A => self.ld_a_hli(memory),
-            0x2B => self.dec_r16(Register::H, Register::L),
-            0x2C => self.inc_r8(Register::L),
-            0x2D => self.dec_r8(Register::L),
-            0x2E => self.ld_r8_u8(memory, Register::L),
-            0x2F => self.cpl(),
-            0x30 => self.jr_cc_i8(memory, !self.get_carry_flag()),
-            0x31 => self.ld_sp_u16(memory),
-            0x32 => self.ld_hld_a(memory),
+            0x27 => Cpu::daa(&mut self.f, &mut self.a, machine_cycle),                                      //DAA 
+            0x28 => Cpu::jr_cc_i8(memory, &mut self.pc, Cpu::get_zero_flag(self.f) == 0, machine_cycle, temp_reg),  //JR_Z_I8
+            0x29 => Cpu::add_hl_r16(&mut self.f, self.h, self.h, &mut self.h, &mut self.l, machine_cycle),  //ADD_HL_HL
+            0x2A => Cpu::ld_a_hli(memory, &mut self.a, &mut self.h, &mut self.l, machine_cycle),            //LD_A_HLI
+            0x2B => Cpu::dec_r16(&mut self.h, &mut self.l, machine_cycle),                                  //DEC_HL
+            0x2C => Cpu::inc_r8(&mut self.f, &mut self.l, machine_cycle),                                   //INC_L              
+            0x2D => Cpu::dec_r8(&mut self.f, &mut self.l, machine_cycle),                                   //DEC_L
+            0x2E => Cpu::ld_r8_u8(memory, &mut self.l, &mut self.pc, machine_cycle),                        //LD_L_U8
+            0x2F => Cpu::cpl(&mut self.f, &mut self.a, machine_cycle),                                      //CPL
+            0x30 => Cpu::jr_cc_i8(memory, &mut self.pc, Cpu::get_carry_flag(self.f) != 0, machine_cycle, temp_reg), //JR_NC_I8
+            0x31 => Cpu::ld_sp_u16(memory, &mut self.pc, &mut self.sp, machine_cycle),                  //LD_SP_U16
+            0x32 => Cpu::ld_hld_a,
             0x33 => self.inc_sp(),
-            0x34 => self.inc_hl(memory),
-            0x35 => self.dec_hl(memory),
+            0x34 => Cpu::inc_hl(&mut self, memory),
+            /*0x35 => self.dec_hl(memory),
             0x36 => self.ld_hl_u8(memory),
             0x37 => self.scf(),
             0x38 => self.jr_cc_i8(memory, self.get_carry_flag()),
@@ -576,10 +576,10 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1 
      */
-    fn add_hl_r16(flag_reg: &mut u8, upper_reg: &mut u8, lower_reg: &mut u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn add_hl_r16(flag_reg: &mut u8, upper_reg: u8, lower_reg: u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
         match machine_cycle {
             1 => {
-                let reg_16 = binary_utils::build_16bit_num(*upper_reg, *lower_reg);
+                let reg_16 = binary_utils::build_16bit_num(upper_reg, lower_reg);
                 let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
                 let (result, overflow) = reg_hl.overflowing_add(reg_16);
                 let half_carry_overflow = (reg_hl & 0x0FFF) + (reg_16 & 0x0FFF) > 0x0FFF;
@@ -753,7 +753,7 @@ impl Cpu {
                 *reg_h = upper_byte;
                 *reg_l = lower_byte;
             },
-            _ => panic!("1 to many machine cycles in ld_hli_a")
+            _ => panic!("1 to many machine cycles in ld_hli_a"),
         }
         return ExecuteStatus::Completed;
     }
@@ -764,24 +764,116 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    pub fn daa(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
-        if !Cpu::get_negative_flag(*flag_reg) {
-            if Cpu::get_carry_flag(*flag_reg) || *reg_a > 0x99 {
-                *reg_a += 0x60;
-                self.set_carry_flag();
-            }
-            if self.get_half_carry_flag() != 0 || self.a & 0x0F > 0x09 {
-                self.a += 0x6;
-            }
+    fn daa(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => {
+                let mut carry_flag = false;
+                if Cpu::get_negative_flag(*flag_reg) == 0 {
+                    if Cpu::get_carry_flag(*flag_reg) != 0 || *reg_a > 0x99 {
+                        *reg_a += 0x60;
+                        carry_flag = true;
+                    }
+                    if Cpu::get_half_carry_flag(*flag_reg) != 0 || *reg_a & 0x0F > 0x09 {
+                        *reg_a += 0x6; 
+                    }
+                }
+                Cpu::set_flags(flag_reg, Some(*reg_a == 0), None, Some(false), Some(carry_flag));
+            },
+            _ => panic!("1 to many machine cycles in daa"),
         }
+        return ExecuteStatus::Completed;
+    }
 
-        if self.a == 0 {
-            self.set_zero_flag();
-        } else {
-            self.reset_zero_flag();
+    /**
+     * Load value into register A from the byte pointed by HL and increment HL afterwards.
+     * 
+     * MACHINE CYCLES: 2
+     * INSTRUCTION LENGTH: 1
+     */
+    fn ld_a_hli(memory: &Memory, reg_a: &mut u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => {
+                let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
+                *reg_a = memory.read_byte(reg_hl);
+        
+                let (upper_byte, lower_byte) = binary_utils::split_16bit_num(reg_hl + 1);
+                *reg_h = upper_byte;
+                *reg_l = lower_byte; 
+            },
+            _ => panic!("1 to many machine cycles in ld_a_hli"),
         }
+        return ExecuteStatus::Completed;                     
+    }
 
-        self.reset_half_carry_flag();
+    /**
+     * Store the complement of the A register into the A register
+     * 
+     * MACHINE CYCLES: 1
+     * INSTRUCTION LENGTH: 1
+     */
+    fn cpl(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => {
+                *reg_a = !*reg_a;
+                Cpu::set_flags(flag_reg, None, Some(true), Some(true), None);
+            },
+            _ => panic!("1 to many machine cycles in cpl"),
+        }
+        return ExecuteStatus::Completed;
+    }
+
+    /**
+     * Load value n16 into register SP.
+     * 
+     * MACHINE CYCLES: 3
+     * INSTRUCTION LENGTH: 3
+     */
+    fn ld_sp_u16(memory: &Memory, pc: &mut u16, sp: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => *sp = memory.read_byte(*pc) as u16,
+            2 => *sp |= (memory.read_byte(*pc) as u16) << 8,
+            _ => panic!("1 to many machine cycles in ld_sp_u16"),
+        }
+        *pc += 1;
+        return ExecuteStatus::Running;
+    }
+
+    /**
+     * Store value in register A into the byte pointed by HL and decrement HL afterwards.
+     * 
+     * MACHINE CYCLES: 2
+     * INSTRUCTION LENGTH: 1
+     */
+    fn ld_hld_a(reg_h: &mut u8, memory: &mut Memory, reg_a: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 =>,
+            2 =>,
+            _ => panic!("1 to many machine cycles in ld_hld_a"),
+        }
+        let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
+        memory.write_byte(reg_hl, *reg_a);
+        let (upper_byte, lower_byte) = binary_utils::split_16bit_num(reg_hl);
+        *reg_h = upper_byte;
+        *reg_l = lower_byte;
+    }
+
+    /**
+     * Increment the byte pointed to by HL by 1.
+     * 
+     * MACHINE CYCLES: 3
+     * INSTRUCTION LENGTH: 1
+     */
+    fn inc_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 =>,
+            2 =>,
+              => panic!("1 to many machine cycles in inc_hl"),
+        }
+        let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
+        let mut hl_data = memory.read_byte(reg_hl);
+        hl_data += 1;
+        memory.write_byte(reg_hl, hl_data);
+        Cpu::set_flags(flag_reg, Some(hl_data == 0), Some(false), Some((hl_data & 0xF) + 1 > 0xF), None);
     }
 
 
@@ -797,22 +889,20 @@ impl Cpu {
 
 
 
-
-
-    fn get_zero_flag(flag_reg: u8) -> bool {
-        ((flag_reg >> 7) & 0x1) != 0
+    fn get_zero_flag(flag_reg: u8) -> u8 {
+        ((flag_reg >> 7) & 0x1)
     }
 
-    fn get_negative_flag(flag_reg: u8) -> bool {
-        ((flag_reg >> 6) & 0x1) != 0
+    fn get_negative_flag(flag_reg: u8) -> u8 {
+        ((flag_reg >> 6) & 0x1)
     }
 
-    fn get_half_carry_flag(flag_reg: u8) -> bool {
-        ((flag_reg >> 5) & 0x1) != 0
+    fn get_half_carry_flag(flag_reg: u8) -> u8 {
+        ((flag_reg >> 5) & 0x1)
     }
 
-    fn get_carry_flag(flag_reg: u8) -> bool {
-        ((flag_reg >> 4) & 0x1) != 0
+    fn get_carry_flag(flag_reg: u8) -> u8 {
+        ((flag_reg >> 4) & 0x1)
     }
 
 
