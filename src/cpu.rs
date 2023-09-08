@@ -1,5 +1,5 @@
 use core::panic;
-use std::f32::consts::E;
+use std::f64::consts::E;
 
 use crate::memory::Memory;
 use crate::cpu_state::{CpuState, ExecuteStatus};
@@ -318,10 +318,10 @@ impl Cpu {
             0xC8 => Cpu::ret_cc(memory, &mut self.sp, &mut self.pc, Cpu::get_zero_flag(self.f) != 0, machine_cycle, temp_reg),     //RET_Z
             0xC9 => Cpu::ret(memory, &mut self.sp, &mut self.pc, machine_cycle, temp_reg),          //RET
             0xCA => Cpu::jp_cc_u16(memory, &mut self.pc, Cpu::get_zero_flag(self.f) != 0, machine_cycle, temp_reg),                 //JP_Z_U16
-            0xCB => Cpu::prefix(memory),    //Need to pass the self.current opcode here as that will
+            0xCB => Cpu::exexute_prefix(self, memory, machine_cycle, temp_reg),    //Need to pass the self.current opcode here as that will
             0xCC => Cpu::call_cc_u16(memory, &mut self.pc, &mut self.sp, Cpu::get_zero_flag(self.f) != 0, machine_cycle, temp_reg),
             0xCD => Cpu::call_u16(memory, &mut self.pc, &mut self.sp, machine_cycle, temp_reg),   //CALL_U16
-            0xCE => Cpu::adc_a_u8(&mut self.f, memory, &mut self.a, &mut self.pc, &mut self.sp, machine_cycle),   //ADC_A_U8
+            0xCE => Cpu::adc_a_u8(&mut self.f, memory, &mut self.a, &mut self.pc, machine_cycle),   //ADC_A_U8
             0xCF => Cpu::rst_vec(memory, &mut self.sp, &mut self.pc, 0x08, machine_cycle),
             0xD0 => Cpu::ret_cc(memory, &mut self.sp, &mut self.pc, Cpu::get_carry_flag(self.f) == 0, machine_cycle, temp_reg), //RET_NC
             0xD1 => Cpu::pop(memory, &mut self.d, &mut self.e, &mut self.sp, machine_cycle),    //POP_DE
@@ -339,9 +339,9 @@ impl Cpu {
             0xDD => panic!("0xDD is an unused opcode"),
             0xDE => Cpu::sbc_a_u8(&mut self.f, memory, &mut self.a, &mut self.pc, machine_cycle),   //SBC_A_U8
             0xDF => Cpu::rst_vec(memory, &mut self.sp, &mut self.pc, 0x18, machine_cycle),  //RST_18
-            0xE0 => Cpu::ldh_u8_a(memory, &mut self.pc, &mut self.a, machine_cycle, temp_reg),         //LDH_U8_A
+            0xE0 => Cpu::ldh_u8_a(memory, &mut self.pc, self.a, machine_cycle, temp_reg),         //LDH_U8_A
             0xE1 => Cpu::pop(memory, &mut self.h, &mut self.l, &mut self.sp, machine_cycle),    //POP_HL
-            0xE2 => Cpu::ldh_c_a(memory, self.a, self.c, machine_cycle, temp_reg),       //LDH_(0xFF00+C)_A
+            0xE2 => Cpu::ldh_c_a(memory, self.a, self.c, machine_cycle),       //LDH_(0xFF00+C)_A
             0xE3 => panic!("0xE3 is an unused opcode"),
             0xE4 => panic!("0xE4 is an unused opcode"),
             0xE5 => Cpu::push_r16(memory, self.h, self.l, &mut self.sp, machine_cycle), //PUSH_HL
@@ -357,7 +357,7 @@ impl Cpu {
             0xEF => Cpu::rst_vec(memory, &mut self.sp, &mut self.pc, 0x28, machine_cycle),  //RST_28
             0xF0 => Cpu::ldh_a_u8(memory, &mut self.pc, &mut self.a, machine_cycle, temp_reg),         //LDH_A_U8
             0xF1 => Cpu::pop(memory, &mut self.a, &mut self.f, &mut self.sp, machine_cycle),    //POP_AF
-            0xF2 => Cpu::ldh_a_c(memory, &mut self.a, self.c, machine_cycle, temp_reg),       //LDH_A_(0xFF00+C)
+            0xF2 => Cpu::ldh_a_c(memory, &mut self.a, self.c, machine_cycle),       //LDH_A_(0xFF00+C)
             0xF3 => Cpu::di(&mut self.ime_flag, machine_cycle),                             //DI
             0xF4 => panic!("0xF4 is an unused opcode"),
             0xF5 => Cpu::push_r16(memory, self.a, self.f, &mut self.sp, machine_cycle), //PUSH_AF
@@ -369,9 +369,8 @@ impl Cpu {
             0xFB => Cpu::ei(&mut self.ime_flag, machine_cycle),                             //EI
             0xFC => panic!("0xFC is an unused opcode"),
             0xFD => panic!("0xFD is an unused opcode"),
-            0xFE => Cpu::cp_a_u8(&mut self.f, memory, &mut self.a, &mut self.pc, machine_cycle),   //CP_A_U8
+            0xFE => Cpu::cp_a_u8(&mut self.f, memory, self.a, &mut self.pc, machine_cycle),   //CP_A_U8
             0xFF => Cpu::rst_vec(memory, &mut self.sp, &mut self.pc, 0x38, machine_cycle),  //RST_38
-            _ => panic!("Unknown opcode"),
         }
     }
 
@@ -1082,7 +1081,6 @@ impl Cpu {
      */
     fn halt() -> ExecuteStatus {
         todo!();
-        return ExecuteStatus::Completed;
     }
 
     /**
@@ -1139,7 +1137,7 @@ impl Cpu {
                 let half_carry_overflow = (*reg_a & 0xF) + (reg & 0xF) + Cpu::get_carry_flag(*flag_reg) > 0xF;
         
                 *reg_a = result;
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(half_carry_overflow), Some(second_overflow));
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(half_carry_overflow), Some(first_overflow || second_overflow));
             },
             _ => panic!("1 to many machine cycles in adc_a_r8"),
         }
@@ -1161,7 +1159,7 @@ impl Cpu {
                 let half_carry_overflow = (*reg_a & 0xF) + (hl_data & 0xF) + Cpu::get_carry_flag(*flag_reg) > 0xF;
         
                 *reg_a = result;
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(half_carry_overflow), Some(second_overflow));
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(half_carry_overflow), Some(first_overflow || second_overflow));
             },
             _ => panic!("1 to many machine cycles in adc_a_hl"),
         }
@@ -1516,12 +1514,12 @@ impl Cpu {
             },
             3 => {
                 *sp -= 1;
-                let (upper_byte, lower_byte) = binary_utils::split_16bit_num(*pc); 
+                let (upper_byte, _) = binary_utils::split_16bit_num(*pc); 
                 memory.write_byte(*sp, upper_byte);
             },
             4 => {
                 *sp -= 1;
-                let (upper_byte, lower_byte) = binary_utils::split_16bit_num(*pc); 
+                let (_, lower_byte) = binary_utils::split_16bit_num(*pc); 
                 memory.write_byte(*sp, lower_byte);
             },
             5 => {
@@ -1589,12 +1587,12 @@ impl Cpu {
         match machine_cycle {
             1 => {
                 *sp -= 1;
-                let (upper_byte, lower_byte) = binary_utils::split_16bit_num(*pc);
+                let (upper_byte, _) = binary_utils::split_16bit_num(*pc);
                 memory.write_byte(*sp, upper_byte);
             },
             2 => {
                 *sp -= 1;
-                let (upper_byte, lower_byte) = binary_utils::split_16bit_num(*pc);
+                let (_, lower_byte) = binary_utils::split_16bit_num(*pc);
                 memory.write_byte(*sp, lower_byte);
             },
             3 =>{
@@ -1650,12 +1648,12 @@ impl Cpu {
             },
             3 => {
                 *sp -= 1;
-                let (upper_byte, lower_byte) = binary_utils::split_16bit_num(*pc);
+                let (upper_byte, _) = binary_utils::split_16bit_num(*pc);
                 memory.write_byte(*sp, upper_byte);
             },
             4 => {
                 *sp -= 1;
-                let (upper_byte, lower_byte) = binary_utils::split_16bit_num(*pc);
+                let (_, lower_byte) = binary_utils::split_16bit_num(*pc);
                 memory.write_byte(*sp, lower_byte);
             },
             5 => {
@@ -1673,7 +1671,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2 
      */
-    fn adc_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, sp: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn adc_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
         match machine_cycle {
             1 => {
                 let value = memory.read_byte(*pc);
@@ -1684,7 +1682,7 @@ impl Cpu {
                 let half_carry_overflow = (*reg_a & 0xF) + (value & 0xF) + Cpu::get_carry_flag(*flag_reg) > 0xF;
         
                 *reg_a = result;
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(half_carry_overflow), Some(second_overflow));
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(half_carry_overflow), Some(first_overflow || second_overflow));
             },
             _ => panic!("1 to many machine cycles in adc_a_u8"),
         }
@@ -1709,6 +1707,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in sub_a_u8"),
         }
+        return ExecuteStatus::Completed;
     }
 
     /**
@@ -1736,7 +1735,6 @@ impl Cpu {
             _ => panic!("1 to many machine cycles in reti"),
         }
         todo!("Need to come back to this instruction as we need to delay the EI flag by 1 machine cycle. They say this is like EI then RET so I might just call those 2 functions");
-        return ExecuteStatus::Running;
     }
 
     fn sbc_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
@@ -1781,7 +1779,7 @@ impl Cpu {
     * MACHINE CYCLES: 2
     * INSTRUCTION LENGTH: 1
     */
-    fn ldh_c_a(memory: &mut Memory, reg_a: u8, reg_c: u8, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn ldh_c_a(memory: &mut Memory, reg_a: u8, reg_c: u8, machine_cycle: u8) -> ExecuteStatus {
         match machine_cycle {
             1 => {
                 memory.write_byte(0xFF00 | reg_c as u16, reg_a);
@@ -1821,12 +1819,12 @@ impl Cpu {
     fn add_sp_i8(flag_reg: &mut u8, memory: &Memory,sp: &mut u16, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
         match machine_cycle { 
             1 => {
-                let value = memory.read_byte(*pc) as i8;
+                let value = memory.read_byte(*pc);
                 *pc += 1;
         
-                let result: u16 = (*sp).wrapping_add_signed(value);
-                let half_carry_overflow = (*sp & 0xF) + (value & 0xF) > 0xF;
-                let carry_overflow = (*sp & 0xFF) + (value & 0xFF) > 0xFF;
+                let result: u16 = (*sp).wrapping_add_signed(value as i16);
+                let half_carry_overflow = (*sp & 0xF) + (value as u16 & 0xF) > 0xF;
+                let carry_overflow = (*sp & 0xFF) + (value as u16 & 0xFF) > 0xFF;
         
                 *sp = result;
                 Cpu::set_flags(flag_reg, Some(false), Some(false), Some(half_carry_overflow), Some(carry_overflow));
@@ -1920,7 +1918,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn ldh_a_c(memory: &Memory, reg_a: &mut u8, reg_c: u8, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn ldh_a_c(memory: &Memory, reg_a: &mut u8, reg_c: u8, machine_cycle: u8) -> ExecuteStatus {
         match machine_cycle {
             1 => {
                 *reg_a = memory.read_byte(0xFF00 | reg_c as u16);
@@ -1976,12 +1974,12 @@ impl Cpu {
     fn ld_hl_sp_i8(flag_reg: &mut u8, memory: &Memory, sp: &mut u16, pc: &mut u16, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
         match machine_cycle {
             1 => {
-                let value = memory.read_byte(*pc) as i8;
+                let value = memory.read_byte(*pc);
                 *pc += 1;
 
-                let result: u16 = (*sp).wrapping_add_signed(value);
-                let half_carry_overflow = (*sp & 0xF) + (value & 0xF) > 0xF;
-                let carry_overflow = (*sp & 0xFF) + (value & 0xFF) > 0xFF;
+                let result: u16 = (*sp).wrapping_add_signed(value as i16);
+                let half_carry_overflow = (*sp & 0xF) + (value as u16 & 0xF) > 0xF;
+                let carry_overflow = (*sp & 0xFF) + (value as u16 & 0xFF) > 0xFF;
         
                 *sp = result;
                 Cpu::set_flags(flag_reg, Some(false), Some(false), Some(half_carry_overflow), Some(carry_overflow));
@@ -2082,55 +2080,55 @@ impl Cpu {
         self.pc += 1; 
 
         match opcode {
-            0x00 => Cpu::rlc_r8(&mut self.f, &mut self.b, machine_cycle),    //RLC B    
-            0x01 => Cpu::rlc_r8(&mut self.f, &mut self.c, machine_cycle),    //RLC C 
-            0x02 => Cpu::rlc_r8(&mut self.f, &mut self.d, machine_cycle),    //RLC D 
-            0x03 => Cpu::rlc_r8(&mut self.f, &mut self.e, machine_cycle),    //RLC E 
-            0x04 => Cpu::rlc_r8(&mut self.f, &mut self.h, machine_cycle),    //RLC H 
-            0x05 => Cpu::rlc_r8(&mut self.f, &mut self.l, machine_cycle),    //RLC L
-            0x06 => Cpu::rlc_hl(&mut self.f, memory, self.h, self.l, machine_cycle),         //RLC (HL)
-            0x07 => Cpu::rlc_r8(&mut self.f, &mut self.a, machine_cycle),       //RLC A
-            0x08 => Cpu::rrc_r8,
-            /*0x09 => self.rrc_r8(Register::C),
-            0x0A => self.rrc_r8(Register::D),
-            0x0B => self.rrc_r8(Register::E),
-            0x0C => self.rrc_r8(Register::H),
-            0x0D => self.rrc_r8(Register::L),
-            0x0E => self.rrc_hl(memory),
-            0x0F => self.rrc_r8(Register::A),
-            0x10 => self.rl_r8(Register::B),
-            0x11 => self.rl_r8(Register::C),
-            0x12 => self.rl_r8(Register::D),
-            0x13 => self.rl_r8(Register::E),
-            0x14 => self.rl_r8(Register::H),
-            0x15 => self.rl_r8(Register::L),
-            0x16 => self.rl_hl(memory),
-            0x17 => self.rl_r8(Register::A),
-            0x18 => self.rr_r8(Register::B),
-            0x19 => self.rr_r8(Register::C),
-            0x1A => self.rr_r8(Register::D),
-            0x1B => self.rr_r8(Register::E),
-            0x1C => self.rr_r8(Register::H),
-            0x1D => self.rr_r8(Register::L),
-            0x1E => self.rr_hl(memory),
-            0x1F => self.rr_r8(Register::A),
-            0x20 => self.sla_r8(Register::B),
-            0x21 => self.sla_r8(Register::C),
-            0x22 => self.sla_r8(Register::D),
-            0x23 => self.sla_r8(Register::E),
-            0x24 => self.sla_r8(Register::H),
-            0x25 => self.sla_r8(Register::L),
-            0x26 => self.sla_hl(memory),
-            0x27 => self.sla_r8(Register::A),
-            0x28 => self.sra_r8(Register::B),
-            0x29 => self.sra_r8(Register::C),
-            0x2A => self.sra_r8(Register::D),
-            0x2B => self.sra_r8(Register::E),
-            0x2C => self.sra_r8(Register::H),
-            0x2D => self.sra_r8(Register::L),
-            0x2E => self.sra_hl(memory),
-            0x2F => self.sra_r8(Register::A),
-            0x30 => self.swap_r8(Register::B),
+            0x00 => Cpu::rlc_r8(&mut self.f, &mut self.b, machine_cycle),                   //RLC B    
+            0x01 => Cpu::rlc_r8(&mut self.f, &mut self.c, machine_cycle),                   //RLC C 
+            0x02 => Cpu::rlc_r8(&mut self.f, &mut self.d, machine_cycle),                   //RLC D 
+            0x03 => Cpu::rlc_r8(&mut self.f, &mut self.e, machine_cycle),                   //RLC E 
+            0x04 => Cpu::rlc_r8(&mut self.f, &mut self.h, machine_cycle),                   //RLC H 
+            0x05 => Cpu::rlc_r8(&mut self.f, &mut self.l, machine_cycle),                   //RLC L
+            0x06 => Cpu::rlc_hl(&mut self.f, memory, self.h, self.l, machine_cycle),        //RLC (HL)
+            0x07 => Cpu::rlc_r8(&mut self.f, &mut self.a, machine_cycle),                   //RLC A
+            0x08 => Cpu::rrc_r8(&mut self.f, &mut self.b, machine_cycle),                   //RRC B
+            0x09 => Cpu::rrc_r8(&mut self.f, &mut self.c, machine_cycle),                   //RRC C
+            0x0A => Cpu::rrc_r8(&mut self.f, &mut self.d, machine_cycle),                   //RRC D
+            0x0B => Cpu::rrc_r8(&mut self.f, &mut self.e, machine_cycle),                   //RRC E
+            0x0C => Cpu::rrc_r8(&mut self.f, &mut self.h, machine_cycle),                   //RRC H
+            0x0D => Cpu::rrc_r8(&mut self.f, &mut self.l, machine_cycle),                   //RRC L
+            0x0E => Cpu::rrc_hl(&mut self.f, memory, self.h, self.l, machine_cycle),        //RRC (HL)
+            0x0F => Cpu::rrc_r8(&mut self.f, &mut self.a, machine_cycle),                   //RRC A
+            0x10 => Cpu::rl_r8(&mut self.f, &mut self.b, machine_cycle),                    //RL B
+            0x11 => Cpu::rl_r8(&mut self.f, &mut self.c, machine_cycle),                    //RL C
+            0x12 => Cpu::rl_r8(&mut self.f, &mut self.d, machine_cycle),                    //RL D
+            0x13 => Cpu::rl_r8(&mut self.f, &mut self.e, machine_cycle),                    //RL E
+            0x14 => Cpu::rl_r8(&mut self.f, &mut self.h, machine_cycle),                    //RL H
+            0x15 => Cpu::rl_r8(&mut self.f, &mut self.l, machine_cycle),                    //RL L
+            0x16 => Cpu::rl_hl(&mut self.f, memory, self.h, self.l, machine_cycle),         //RL (HL)
+            0x17 => Cpu::rl_r8(&mut self.f, &mut self.a, machine_cycle),                    //RL A
+            0x18 => Cpu::rr_r8(&mut self.f, &mut self.b, machine_cycle),                    //RR B
+            0x19 => Cpu::rr_r8(&mut self.f, &mut self.c, machine_cycle),                    //RR C
+            0x1A => Cpu::rr_r8(&mut self.f, &mut self.d, machine_cycle),                    //RR D
+            0x1B => Cpu::rr_r8(&mut self.f, &mut self.e, machine_cycle),                    //RR E
+            0x1C => Cpu::rr_r8(&mut self.f, &mut self.h, machine_cycle),                    //RR H
+            0x1D => Cpu::rr_r8(&mut self.f, &mut self.l, machine_cycle),                    //RR L
+            0x1E => Cpu::rr_hl(&mut self.f, memory, self.h, self.l, machine_cycle),         //RR (HL)
+            0x1F => Cpu::rr_r8(&mut self.f, &mut self.a, machine_cycle),                    //RR A
+            0x20 => Cpu::sla_r8(&mut self.f, &mut self.b, machine_cycle),                   //SLA B
+            0x21 => Cpu::sla_r8(&mut self.f, &mut self.c, machine_cycle),                   //SLA C
+            0x22 => Cpu::sla_r8(&mut self.f, &mut self.d, machine_cycle),                   //SLA D
+            0x23 => Cpu::sla_r8(&mut self.f, &mut self.e, machine_cycle),                   //SLA E
+            0x24 => Cpu::sla_r8(&mut self.f, &mut self.h, machine_cycle),                   //SLA H
+            0x25 => Cpu::sla_r8(&mut self.f, &mut self.l, machine_cycle),                   //SLA L
+            0x26 => Cpu::sla_hl(&mut self.f, memory, self.h, self.l, machine_cycle),        //SLA (HL)
+            0x27 => Cpu::sla_r8(&mut self.f, &mut self.a, machine_cycle),                   //SLA A
+            0x28 => Cpu::sra_r8(&mut self.f, &mut self.b, machine_cycle),                   //SRA B
+            0x29 => Cpu::sra_r8(&mut self.f, &mut self.c, machine_cycle),                   //SRA C
+            0x2A => Cpu::sra_r8(&mut self.f, &mut self.d, machine_cycle),                   //SRA D
+            0x2B => Cpu::sra_r8(&mut self.f, &mut self.e, machine_cycle),                   //SRA E
+            0x2C => Cpu::sra_r8(&mut self.f, &mut self.h, machine_cycle),                   //SRA H
+            0x2D => Cpu::sra_r8(&mut self.f, &mut self.l, machine_cycle),                   //SRA L
+            0x2E => Cpu::sra_hl(&mut self.f, memory, self.h, self.l, machine_cycle),        //SRA (HL)
+            0x2F => Cpu::sra_r8(&mut self.f, &mut self.a, machine_cycle),                   //SRA A
+            /*0x30 => self.swap_r8(Register::B),
             0x31 => self.swap_r8(Register::C),
             0x32 => self.swap_r8(Register::D),
             0x33 => self.swap_r8(Register::E),
@@ -2138,78 +2136,80 @@ impl Cpu {
             0x35 => self.swap_r8(Register::L),
             0x36 => self.swap_hl(memory),
             0x37 => self.swap_r8(Register::A),
-            0x38 => self.srl_r8(Register::B),
-            0x39 => self.srl_r8(Register::B),
-            0x3A => self.srl_r8(Register::B),
-            0x3B => self.srl_r8(Register::B),
-            0x3C => self.srl_r8(Register::B),
-            0x3D => self.srl_r8(Register::B),
-            0x3E => self.srl_hl(memory),
-            0x3F => self.srl_r8(Register::A),
-            0x40 => self.bit_u3_r8(0, Register::B),
-            0x41 => self.bit_u3_r8(0, Register::C),
-            0x42 => self.bit_u3_r8(0, Register::D),
-            0x43 => self.bit_u3_r8(0, Register::E),
-            0x44 => self.bit_u3_r8(0, Register::H),
-            0x45 => self.bit_u3_r8(0, Register::L),
-            0x46 => self.bit_u3_hl(0, memory),
-            0x47 => self.bit_u3_r8(0, Register::A),
-            0x48 => self.bit_u3_r8(1, Register::B),
-            0x49 => self.bit_u3_r8(1, Register::C),
-            0x4A => self.bit_u3_r8(1, Register::D),
-            0x4B => self.bit_u3_r8(1, Register::E),
-            0x4C => self.bit_u3_r8(1, Register::H),
-            0x4D => self.bit_u3_r8(1, Register::L),
-            0x4E => self.bit_u3_hl(1, memory),
-            0x4F => self.bit_u3_r8(1, Register::A),
-            0x50 => self.bit_u3_r8(2, Register::B),
-            0x51 => self.bit_u3_r8(2, Register::C),
-            0x52 => self.bit_u3_r8(2, Register::D),
-            0x53 => self.bit_u3_r8(2, Register::E),
-            0x54 => self.bit_u3_r8(2, Register::H),
-            0x55 => self.bit_u3_r8(2, Register::L),
-            0x56 => self.bit_u3_hl(2, memory),
-            0x57 => self.bit_u3_r8(2, Register::A),
-            0x58 => self.bit_u3_r8(3, Register::B),
-            0x59 => self.bit_u3_r8(3, Register::C),
-            0x5A => self.bit_u3_r8(3, Register::D),
-            0x5B => self.bit_u3_r8(3, Register::E),
-            0x5C => self.bit_u3_r8(3, Register::H),
-            0x5D => self.bit_u3_r8(3, Register::L),
-            0x5E => self.bit_u3_hl(3, memory),
-            0x5F => self.bit_u3_r8(3, Register::A),
-            0x60 => self.bit_u3_r8(4, Register::B),
-            0x61 => self.bit_u3_r8(4, Register::C),
-            0x62 => self.bit_u3_r8(4, Register::D),
-            0x63 => self.bit_u3_r8(4, Register::E),
-            0x64 => self.bit_u3_r8(4, Register::H),
-            0x65 => self.bit_u3_r8(4, Register::L),
-            0x66 => self.bit_u3_hl(4, memory),
-            0x67 => self.bit_u3_r8(4, Register::A),
-            0x68 => self.bit_u3_r8(5, Register::B),
-            0x69 => self.bit_u3_r8(5, Register::C),
-            0x6A => self.bit_u3_r8(5, Register::D),
-            0x6B => self.bit_u3_r8(5, Register::E),
-            0x6C => self.bit_u3_r8(5, Register::H),
-            0x6D => self.bit_u3_r8(5, Register::L),
-            0x6E => self.bit_u3_hl(5, memory),
-            0x6F => self.bit_u3_r8(5, Register::A),
-            0x70 => self.bit_u3_r8(6, Register::B),
-            0x71 => self.bit_u3_r8(6, Register::C),
-            0x72 => self.bit_u3_r8(6, Register::D),
-            0x73 => self.bit_u3_r8(6, Register::E),
-            0x74 => self.bit_u3_r8(6, Register::H),
-            0x75 => self.bit_u3_r8(6, Register::L),
-            0x76 => self.bit_u3_hl(6, memory),
-            0x77 => self.bit_u3_r8(6, Register::A),
-            0x78 => self.bit_u3_r8(7, Register::B),
-            0x79 => self.bit_u3_r8(7, Register::C),
-            0x7A => self.bit_u3_r8(7, Register::D),
-            0x7B => self.bit_u3_r8(7, Register::E),
-            0x7C => self.bit_u3_r8(7, Register::H),
-            0x7D => self.bit_u3_r8(7, Register::L),
-            0x7E => self.bit_u3_hl(7, memory),
-            0x7F => self.bit_u3_r8(7, Register::A),
+            */
+           
+            0x38 => Cpu::srl_r8(&mut self.f, &mut self.b, machine_cycle),               //SRL B
+            0x39 => Cpu::srl_r8(&mut self.f, &mut self.c, machine_cycle),               //SRL C
+            0x3A => Cpu::srl_r8(&mut self.f, &mut self.d, machine_cycle),               //SRL D
+            0x3B => Cpu::srl_r8(&mut self.f, &mut self.e, machine_cycle),               //SRL E
+            0x3C => Cpu::srl_r8(&mut self.f, &mut self.h, machine_cycle),               //SRL H
+            0x3D => Cpu::srl_r8(&mut self.f, &mut self.l, machine_cycle),               //SRL L
+            0x3E => Cpu::srl_hl(&mut self.f, memory, self.h, self.l, machine_cycle),    //SRL (HL)
+            0x3F => Cpu::srl_r8(&mut self.f, &mut self.a, machine_cycle),               //SRL A
+            0x40 => Cpu::bit_u3_r8(&mut self.f, 0, self.b, machine_cycle),              //BIT 0, B
+            0x41 => Cpu::bit_u3_r8(&mut self.f, 0, self.c, machine_cycle),              //BIT 0, C
+            0x42 => Cpu::bit_u3_r8(&mut self.f, 0, self.d, machine_cycle),              //BIT 0, D
+            0x43 => Cpu::bit_u3_r8(&mut self.f, 0, self.e, machine_cycle),              //BIT 0, E
+            0x44 => Cpu::bit_u3_r8(&mut self.f, 0, self.h, machine_cycle),              //BIT 0, H
+            0x45 => Cpu::bit_u3_r8(&mut self.f, 0, self.l, machine_cycle),              //BIT 0, L
+            0x46 => Cpu::bit_u3_hl(&mut self.f, memory, self.h, self.l, 0, machine_cycle),   //BIT 0, (HL)
+            0x47 => Cpu::bit_u3_r8(&mut self.f, 0, self.a, machine_cycle),              //BIT 0, A
+            0x48 => Cpu::bit_u3_r8(&mut self.f, 1, self.b, machine_cycle),              //BIT 1, B
+            0x49 => Cpu::bit_u3_r8(&mut self.f, 1, self.c, machine_cycle),              //BIT 1, C
+            0x4A => Cpu::bit_u3_r8(&mut self.f, 1, self.d, machine_cycle),              //BIT 1, D
+            0x4B => Cpu::bit_u3_r8(&mut self.f, 1, self.e, machine_cycle),              //BIT 1, E
+            0x4C => Cpu::bit_u3_r8(&mut self.f, 1, self.h, machine_cycle),              //BIT 1, H
+            0x4D => Cpu::bit_u3_r8(&mut self.f, 1, self.l, machine_cycle),              //BIT 1, L
+            0x4E => Cpu::bit_u3_hl(&mut self.f, memory, self.h, self.l, 1, machine_cycle),   //BIT 1, (HL)
+            0x4F => Cpu::bit_u3_r8(&mut self.f, 1, self.a, machine_cycle),              //BIT 1, A
+            0x50 => Cpu::bit_u3_r8(&mut self.f, 2, self.b, machine_cycle),              //BIT 2, B
+            0x51 => Cpu::bit_u3_r8(&mut self.f, 2, self.c, machine_cycle),              //BIT 2, C
+            0x52 => Cpu::bit_u3_r8(&mut self.f, 2, self.d, machine_cycle),              //BIT 2, D
+            0x53 => Cpu::bit_u3_r8(&mut self.f, 2, self.e, machine_cycle),              //BIT 2, E
+            0x54 => Cpu::bit_u3_r8(&mut self.f, 2, self.h, machine_cycle),              //BIT 2, H
+            0x55 => Cpu::bit_u3_r8(&mut self.f, 2, self.l, machine_cycle),              //BIT 2, L
+            0x56 => Cpu::bit_u3_hl(&mut self.f, memory, self.h, self.l, 2, machine_cycle),   //BIT 2, (HL)
+            0x57 => Cpu::bit_u3_r8(&mut self.f, 2, self.a, machine_cycle),              //BIT 2, A
+            0x58 => Cpu::bit_u3_r8(&mut self.f, 3, self.b, machine_cycle),              //BIT 3, B
+            0x59 => Cpu::bit_u3_r8(&mut self.f, 3, self.c, machine_cycle),              //BIT 3, C
+            0x5A => Cpu::bit_u3_r8(&mut self.f, 3, self.d, machine_cycle),              //BIT 3, D
+            0x5B => Cpu::bit_u3_r8(&mut self.f, 3, self.e, machine_cycle),              //BIT 3, E
+            0x5C => Cpu::bit_u3_r8(&mut self.f, 3, self.h, machine_cycle),              //BIT 3, H
+            0x5D => Cpu::bit_u3_r8(&mut self.f, 3, self.l, machine_cycle),              //BIT 3, L
+            0x5E => Cpu::bit_u3_hl(&mut self.f, memory, self.h, self.l, 3, machine_cycle),   //BIT 3, (HL)
+            0x5F => Cpu::bit_u3_r8(&mut self.f, 3, self.a, machine_cycle),              //BIT 3, A
+            0x60 => Cpu::bit_u3_r8(&mut self.f, 4, self.b, machine_cycle),              //BIT 4, B
+            0x61 => Cpu::bit_u3_r8(&mut self.f, 4, self.c, machine_cycle),              //BIT 4, C
+            0x62 => Cpu::bit_u3_r8(&mut self.f, 4, self.d, machine_cycle),              //BIT 4, D
+            0x63 => Cpu::bit_u3_r8(&mut self.f, 4, self.e, machine_cycle),              //BIT 4, E
+            0x64 => Cpu::bit_u3_r8(&mut self.f, 4, self.h, machine_cycle),              //BIT 4, H
+            0x65 => Cpu::bit_u3_r8(&mut self.f, 4, self.l, machine_cycle),              //BIT 4, L
+            0x66 => Cpu::bit_u3_hl(&mut self.f, memory, self.h, self.l, 4, machine_cycle),   //BIT 4, (HL)
+            0x67 => Cpu::bit_u3_r8(&mut self.f, 4, self.a, machine_cycle),              //BIT 4, A
+            0x68 => Cpu::bit_u3_r8(&mut self.f, 5, self.b, machine_cycle),              //BIT 5, B
+            0x69 => Cpu::bit_u3_r8(&mut self.f, 5, self.c, machine_cycle),              //BIT 5, C
+            0x6A => Cpu::bit_u3_r8(&mut self.f, 5, self.d, machine_cycle),              //BIT 5, D
+            0x6B => Cpu::bit_u3_r8(&mut self.f, 5, self.e, machine_cycle),              //BIT 5, E
+            0x6C => Cpu::bit_u3_r8(&mut self.f, 5, self.h, machine_cycle),              //BIT 5, H
+            0x6D => Cpu::bit_u3_r8(&mut self.f, 5, self.l, machine_cycle),              //BIT 5, L
+            0x6E => Cpu::bit_u3_hl(&mut self.f, memory, self.h, self.l, 5, machine_cycle),   //BIT 5, (HL)
+            0x6F => Cpu::bit_u3_r8(&mut self.f, 5, self.a, machine_cycle),              //BIT 5, A
+            0x70 => Cpu::bit_u3_r8(&mut self.f, 6, self.b, machine_cycle),              //BIT 6, B
+            0x71 => Cpu::bit_u3_r8(&mut self.f, 6, self.c, machine_cycle),              //BIT 6, C
+            0x72 => Cpu::bit_u3_r8(&mut self.f, 6, self.d, machine_cycle),              //BIT 6, D
+            0x73 => Cpu::bit_u3_r8(&mut self.f, 6, self.e, machine_cycle),              //BIT 6, E
+            0x74 => Cpu::bit_u3_r8(&mut self.f, 6, self.h, machine_cycle),              //BIT 6, H
+            0x75 => Cpu::bit_u3_r8(&mut self.f, 6, self.l, machine_cycle),              //BIT 6, L
+            0x76 => Cpu::bit_u3_hl(&mut self.f, memory, self.h, self.l, 6, machine_cycle),   //BIT 6, (HL)
+            0x77 => Cpu::bit_u3_r8(&mut self.f, 6, self.a, machine_cycle),              //BIT 6, A
+            0x78 => Cpu::bit_u3_r8(&mut self.f, 7, self.b, machine_cycle),              //BIT 7, B
+            0x79 => Cpu::bit_u3_r8(&mut self.f, 7, self.c, machine_cycle),              //BIT 7, C
+            0x7A => Cpu::bit_u3_r8(&mut self.f, 7, self.d, machine_cycle),              //BIT 7, D
+            0x7B => Cpu::bit_u3_r8(&mut self.f, 7, self.e, machine_cycle),              //BIT 7, E
+            0x7C => Cpu::bit_u3_r8(&mut self.f, 7, self.h, machine_cycle),              //BIT 7, H
+            0x7D => Cpu::bit_u3_r8(&mut self.f, 7, self.l, machine_cycle),              //BIT 7, L
+            0x7E => Cpu::bit_u3_hl(&mut self.f, memory, self.h, self.l, 7, machine_cycle),   //BIT 7, (HL)
+            0x7F => Cpu::bit_u3_r8(&mut self.f, 7, self.a, machine_cycle),              //BIT 7, A
             0x80 => self.res_u3_r8(0, Register::B),
             0x81 => self.res_u3_r8(0, Register::C),
             0x82 => self.res_u3_r8(0, Register::D),
@@ -2218,7 +2218,7 @@ impl Cpu {
             0x85 => self.res_u3_r8(0, Register::L),
             0x86 => self.res_u3_hl(0, memory),
             0x87 => self.res_u3_r8(0, Register::A),
-            0x88 => self.res_u3_r8(1, Register::B),
+            /*0x88 => self.res_u3_r8(1, Register::B),
             0x89 => self.res_u3_r8(1, Register::C),
             0x8A => self.res_u3_r8(1, Register::D),
             0x8B => self.res_u3_r8(1, Register::E),
@@ -2354,7 +2354,7 @@ impl Cpu {
             1 => {
                 let result = (*reg).rotate_left(1);
                 *reg = result;
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(*reg & 0x80 == 0x80));
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(*reg & 0x01 == 0x01));
             },
             _ => panic!("1 to many machine cycles in rlc_r8"),
         }
@@ -2367,14 +2367,14 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 2
      */
-    fn rlc_hl(flag_reg: &mut u8, memory: &Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rlc_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
         match machine_cycle {
             1 => (), //Should be reading from hl here but nah
             2 => {
                 let value = memory.read_byte(build_16bit_num(reg_h, reg_l));
                 let result = value.rotate_left(1);
                 memory.write_byte(build_16bit_num(reg_h, reg_l), result);
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(result & 0x80 == 0x80));
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(result & 0x01 == 0x01));
                 return ExecuteStatus::Completed;
             },
             _ => panic!("1 to many machine cycles in rlc_hl"),
@@ -2399,6 +2399,343 @@ impl Cpu {
         }
         return ExecuteStatus::Completed;
     }
+
+
+    /**
+     * Rotate the byte pointed to by HL right.
+     * 
+     * MACHINE CYCLES: 4
+     * INSTRUCTION LENGTH: 2
+     */
+    fn rrc_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => (), //Should be reading from hl here but nah
+            2 => {
+                let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
+                let result = hl_data.rotate_right(1);
+                memory.write_byte(build_16bit_num(reg_h, reg_l), result);
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(result & 0x80 == 0x80));
+                return ExecuteStatus::Completed;
+            },
+            _ => panic!("1 to many machine cycles in rrc_hl"),
+        }
+        return ExecuteStatus::Running;
+    }
+
+    /**
+     * Rotate register r8 left through carry.
+     * 
+     * MACHINE CYCLES: 2
+     * INSTRUCTION LENGTH: 2 
+     */
+    fn rl_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => {
+                let rotated_bit: u8 = binary_utils::get_bit(*reg, 7);
+                *reg = (*reg << 1) | Cpu::get_carry_flag(*flag_reg);
+                Cpu::set_flags(flag_reg, Some(*reg == 0), Some(false), Some(false), Some(rotated_bit != 0));
+            },
+            _ => panic!("1 to many machine cycles in rl_r8"),
+        }
+        return ExecuteStatus::Completed;
+    }
+
+    /**
+     * Rotate the byte pointed to by HL left through carry.
+     * 
+     * MACHINE CYCLES: 4
+     * INSTRUCTION LENGTH: 2
+     */
+    fn rl_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => (), //Should be reading from hl here but nah
+            2 => {
+                let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
+                let rotated_bit: u8 = binary_utils::get_bit(hl_data, 7);
+                let result = (hl_data << 1) | Cpu::get_carry_flag(*flag_reg);
+                memory.write_byte(build_16bit_num(reg_h, reg_l), result);
+
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(rotated_bit != 0));
+                return ExecuteStatus::Completed;
+            },
+            _ => panic!("1 to many machine cycles in rl_hl"),
+        }
+        return ExecuteStatus::Running;
+    }
+
+    /**
+     * Rotate register r8 right through carry.
+     * 
+     * MACHINE CYCLES: 2
+     * INSTRUCTION LENGTH: 2
+     */
+    fn rr_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => {
+                let rotated_bit: u8 = binary_utils::get_bit(*reg, 0);
+                *reg = (*reg >> 1) | (Cpu::get_carry_flag(*flag_reg) << 7);
+                Cpu::set_flags(flag_reg, Some(*reg == 0), Some(false), Some(false), Some(rotated_bit != 0));
+            },
+            _ => panic!("1 to many machine cycles in rr_r8"),
+        }
+        return ExecuteStatus::Completed;
+    }
+
+    
+    /**
+     * Rotate the byte pointed to by HL right through carry.
+     * 
+     * MACHINE CYCLE: 4
+     * INSTRUCTION LENGTH: 2
+     */
+    fn rr_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => (), //Should be reading from hl here but nah
+            2 => {
+                let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
+                let rotated_bit: u8 = binary_utils::get_bit(hl_data, 0);
+                let result = (hl_data >> 1) | (Cpu::get_carry_flag(*flag_reg) << 7);
+                memory.write_byte(build_16bit_num(reg_h, reg_l), result);
+
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(rotated_bit != 0));
+                return ExecuteStatus::Completed;
+            },
+            _ => panic!("1 to many machine cycles in rr_hl"),
+        }
+        return ExecuteStatus::Running;
+    }
+
+    /**
+     * Shift Left Arithmetically register r8.
+     * 
+     * MACHINE CYCLES: 2
+     * INSTRUCTION LENGTH: 2
+     */
+    fn sla_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => {
+                let rotated_bit: u8 = binary_utils::get_bit(*reg, 7);
+                *reg = *reg << 1;
+                Cpu::set_flags(flag_reg, Some(*reg == 0), Some(false), Some(false), Some(rotated_bit != 0));
+            },
+            _ => panic!("1 to many machine cycles in sla_r8"),
+        }
+        return ExecuteStatus::Completed;
+    }
+
+    /**
+     * Shift Left Arithmetically the byte pointed to by HL.
+     * 
+     * MACHINE CYCLES: 4
+     * INSTRUCTION LENGTH: 2
+     */
+    fn sla_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => (), //Should be reading from hl here but nah
+            2 => {
+                let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
+                let rotated_bit: u8 = binary_utils::get_bit(hl_data, 7);
+                let result = hl_data << 1;
+                memory.write_byte(build_16bit_num(reg_h, reg_l), result);
+
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(rotated_bit != 0));
+                return ExecuteStatus::Completed;
+            },
+            _ => panic!("1 to many machine cycles in sla_hl"),
+        }
+        return ExecuteStatus::Running;
+    }
+
+    /**
+     * Shift Right Arithmetically register r8.
+     * 
+     * MACHINE CYCLES: 2
+     * INSTRUCTION LENGTH: 2
+     */
+    fn sra_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => {
+                let rotated_bit: u8 = binary_utils::get_bit(*reg, 0);
+                *reg = (*reg >> 1) | (*reg & 0x80);
+                Cpu::set_flags(flag_reg, Some(*reg == 0), Some(false), Some(false), Some(rotated_bit != 0));
+            },
+            _ => panic!("1 to many machine cycles in sra_r8"),
+        }
+        return ExecuteStatus::Completed;
+    }
+
+    /**
+     * Shift Right Arithmetically the byte pointed to by HL.
+     * 
+     * MACHINE CYCLES: 4
+     * INSTRUCTION LENGTH: 2
+     */
+    fn sra_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => (), //Should be reading from hl here but nah
+            2 => {
+                let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
+                let rotated_bit: u8 = binary_utils::get_bit(hl_data, 0);
+                let result = (hl_data >> 1) | (hl_data & 0x80);
+                memory.write_byte(build_16bit_num(reg_h, reg_l), result);
+
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(rotated_bit != 0));
+                return ExecuteStatus::Completed;
+            },
+            _ => panic!("1 to many machine cycles in sra_hl"),
+        }
+        return ExecuteStatus::Running;
+    }
+
+    /*
+    pub fn swap_r8(&mut self, reg: Register) {
+        let reg_value = match reg {
+            Register::A => &mut self.a,
+            Register::B => &mut self.b,
+            Register::C => &mut self.c,
+            Register::D => &mut self.d,
+            Register::E => &mut self.e,
+            Register::F => panic!("Cannot use register f (sra_r8)"),
+            Register::H => &mut self.h,
+            Register::L => &mut self.l,
+            _ => panic!("Cannot use register sp and pc (sra_r8)"),
+        };
+
+        let lower_nibble = *reg_value >> 4;
+        let result = (*reg_value << 4) | lower_nibble;
+
+        *reg_value = result;
+        
+        if result != 0 {
+            self.set_zero_flag();
+        } else {
+            self.reset_zero_flag();
+        }
+
+        self.reset_add_sub_flag();
+        self.reset_half_carry_flag();
+        self.reset_carry_flag();
+    }
+   */ 
+
+    /**
+     * Shift Right Logically register r8.
+     * 
+     * MACHINE CYCLES: 2
+     * INSTRUCTION LENGTH: 2
+     */
+    fn srl_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => {
+                let rotated_bit: u8 = binary_utils::get_bit(*reg, 0);
+                *reg = *reg >> 1;
+                Cpu::set_flags(flag_reg, Some(*reg == 0), Some(false), Some(false), Some(rotated_bit != 0));
+            },
+            _ => panic!("1 to many machine cycles in srl_r8"),
+        }
+        return ExecuteStatus::Completed;
+    }
+
+    /**
+     * Shift Right Logically the byte pointed to by HL.
+     * 
+     * MACHINE CYCLES: 4
+     * INSTRUCTION LENGTH: 2
+     */
+    fn srl_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => (), //Should be reading from hl here but nah
+            2 => {
+                let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
+                let rotated_bit: u8 = binary_utils::get_bit(hl_data, 0);
+                let result = hl_data >> 1;
+                memory.write_byte(build_16bit_num(reg_h, reg_l), result);
+
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(rotated_bit != 0));
+                return ExecuteStatus::Completed;
+            },
+            _ => panic!("1 to many machine cycles in srl_hl"),
+        }
+        return ExecuteStatus::Running;
+    }
+
+    /**
+     * Bit test register r8.
+     * 
+     * MACHINE CYCLES: 2
+     * INSTRUCTION LENGTH: 2
+     */
+    fn bit_u3_r8(flag_reg: &mut u8, reg: u8, bit_to_test: u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => {
+                let result = binary_utils::get_bit(reg, bit_to_test);
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(true), None);
+            },
+            _ => panic!("1 to many machine cycles in bit_u3_r8"),
+        }
+        return ExecuteStatus::Completed;
+    }
+
+    /**
+     * Bit test the byte pointed to by HL.
+     * 
+     * MACHINE CYCLES: 4
+     * INSTRUCTION LENGTH: 2
+     */
+    fn bit_u3_hl(flag_reg: &mut u8, memory: &Memory, reg_h: u8, reg_l: u8, bit_to_test: u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => (), //Should be reading from hl here but nah
+            2 => {
+                let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
+                let result = binary_utils::get_bit(hl_data, bit_to_test);
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(true), None);
+            },
+            _ => panic!("1 to many machine cycles in bit_u3_hl"),
+        }
+        return ExecuteStatus::Completed;
+    }
+
+    /**
+     * Reset bit u3 in register r8 to 0. Bit 0 is the rightmost one, bit 7 the leftmost one.
+     * 
+     * MACHINE CYCLES: 2
+     * INSTRUCTION LENGTH: 2
+     */
+    fn res_u3_r8(reg: &mut u8, bit_to_reset: u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => {
+                let result = *reg & !(0x1 << bit_to_reset);
+                *reg = result;
+            }, 
+            _ => panic!("1 to many machine cycles in res_u3_r8"),
+        }
+        return ExecuteStatus::Completed;
+    }
+
+    /**
+     * Reset bit u3 in the byte pointed to by HL to 0. Bit 0 is the rightmost one, bit 7 the leftmost one.
+     * 
+     * MACHINE CYCLES: 4
+     * INSTRUCTION LENGTH: 2
+     */
+    fn res_u3_hl(memory: &mut Memory, reg_h: u8, reg_l: u8, bit_to_reset: u8, machine_cycle: u8) -> ExecuteStatus {
+        match machine_cycle {
+            1 => (), //Should be reading from hl here but nah
+            2 => {
+                let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
+                let result = hl_data & !(0x1 << bit_to_reset);
+                memory.write_byte(build_16bit_num(reg_h, reg_l), result);
+            },
+            _ => panic!("1 to many machine cycles in res_u3_hl"),
+        }
+        return ExecuteStatus::Completed;
+    }
+
+
+
+
+
+
 
 
 
