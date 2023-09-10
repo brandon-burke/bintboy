@@ -1,8 +1,7 @@
 use core::panic;
-use std::f64::consts::E;
 
 use crate::memory::Memory;
-use crate::cpu_state::{CpuState, ExecuteStatus};
+use crate::cpu_state::{CpuState, Status};
 use crate::opcodes::{OPCODE_MACHINE_CYCLES, PREFIX_OPCODE_MACHINE_CYCLES};
 use crate::binary_utils::{self, split_16bit_num, build_16bit_num};
 
@@ -23,7 +22,7 @@ pub struct Cpu {
     cpu_state: CpuState,    //Let's us know the current state of the CPU
     cpu_clk_cycles: u8,     //Keeps track of how many cpu clk cycles have gone by
     current_opcode: u8,     //Keeps track of the current worked on opcode
-    ime_flag: bool,              //Interrupt Master Enable
+    ime_flag: bool,         //Interrupt Master Enable
 }
 
 impl Cpu {
@@ -70,9 +69,9 @@ impl Cpu {
 
                     if OPCODE_MACHINE_CYCLES[self.current_opcode as usize] == 1 {
                         match self.exexute(memory, 1, &mut 0) {
-                            ExecuteStatus::Completed => self.cpu_state = CpuState::InterruptHandle,
-                            ExecuteStatus::Running => (),
-                            ExecuteStatus::Error => panic!("Error Executing opcode"),
+                            Status::Completed => self.cpu_state = CpuState::InterruptHandle { machine_cycle: 0 },
+                            Status::Running => (),
+                            Status::Error => panic!("Error Executing opcode"),
                         }
                     }
                 }
@@ -82,24 +81,31 @@ impl Cpu {
                 self.cpu_state = CpuState::Execute { machine_cycle: 0, temp_reg: 0 };
 
                 if PREFIX_OPCODE_MACHINE_CYCLES[self.current_opcode as usize] == 2 { //2 b/c you always have to fetch the prefix
-                    match self.exexute_prefix(memory, 1, &mut 0) {
-                        ExecuteStatus::Completed => self.cpu_state = CpuState::InterruptHandle,
-                        ExecuteStatus::Running => (),
-                        ExecuteStatus::Error => panic!("Error Executing opcode"),
+                    match self.exexute_prefix(memory, 1) {
+                        Status::Completed => self.cpu_state = CpuState::InterruptHandle { machine_cycle: 0 },
+                        Status::Running => (),
+                        Status::Error => panic!("Error Executing opcode"),
                     }
                 }
             },
             CpuState::Execute { mut machine_cycle, mut temp_reg } => {
                 machine_cycle += 1;
                 match self.exexute(memory, machine_cycle, &mut temp_reg) {
-                    ExecuteStatus::Completed => self.cpu_state = CpuState::InterruptHandle,
-                    ExecuteStatus::Running => (),
-                    ExecuteStatus::Error => panic!("Error Executing opcode"),
+                    Status::Completed => self.cpu_state = CpuState::InterruptHandle { machine_cycle: 0 },
+                    Status::Running => (),
+                    Status::Error => panic!("Error Executing opcode"),
                 }    
             },
-            CpuState::InterruptHandle => todo!(),
+            CpuState::InterruptHandle { machine_cycle } => {
+                //Check if interrupts need to be handled
+            },
         }
     }
+
+    fn handle_interrupt (&mut self, memory: &mut Memory) {
+        //Check if interrupts need to be handled
+    }
+
 
     /**
      * Retrieving the next opcode from memory
@@ -113,7 +119,7 @@ impl Cpu {
     /**
     * Given an opcode it will execute the instruction of the opcode
     */
-    pub fn exexute(&mut self, memory: &mut Memory, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    pub fn exexute(&mut self, memory: &mut Memory, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match self.current_opcode {
             0x00 => Cpu::nop(machine_cycle),                                                                                //NOP
             0x01 => Cpu::ld_r16_u16(memory, &mut self.b, &mut self.c, &mut self.pc, machine_cycle),     //LD_BC_U16
@@ -318,7 +324,7 @@ impl Cpu {
             0xC8 => Cpu::ret_cc(memory, &mut self.sp, &mut self.pc, Cpu::get_zero_flag(self.f) != 0, machine_cycle, temp_reg),     //RET_Z
             0xC9 => Cpu::ret(memory, &mut self.sp, &mut self.pc, machine_cycle, temp_reg),          //RET
             0xCA => Cpu::jp_cc_u16(memory, &mut self.pc, Cpu::get_zero_flag(self.f) != 0, machine_cycle, temp_reg),                 //JP_Z_U16
-            0xCB => Cpu::exexute_prefix(self, memory, machine_cycle, temp_reg),    //Need to pass the self.current opcode here as that will
+            0xCB => Cpu::exexute_prefix(self, memory, machine_cycle),    //Need to pass the self.current opcode here as that will
             0xCC => Cpu::call_cc_u16(memory, &mut self.pc, &mut self.sp, Cpu::get_zero_flag(self.f) != 0, machine_cycle, temp_reg),
             0xCD => Cpu::call_u16(memory, &mut self.pc, &mut self.sp, machine_cycle, temp_reg),   //CALL_U16
             0xCE => Cpu::adc_a_u8(&mut self.f, memory, &mut self.a, &mut self.pc, machine_cycle),   //ADC_A_U8
@@ -429,12 +435,12 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn nop(machine_cycle: u8) -> ExecuteStatus {
+    fn nop(machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (),
             _ => panic!("1 to many machine cycles on nop"),
         }
-        return ExecuteStatus::Completed
+        return Status::Completed
     }
 
     /**
@@ -443,17 +449,17 @@ impl Cpu {
      * MACHINE CYCLES: 3
      * INSTRUCTION LENGTH: 3
      */
-    fn ld_r16_u16(memory: &Memory, upper_reg: &mut u8, lower_reg: &mut u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_r16_u16(memory: &Memory, upper_reg: &mut u8, lower_reg: &mut u8, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => *lower_reg = memory.read_byte(*pc),
             2 => { 
                 *upper_reg = memory.read_byte(*pc); 
-                return ExecuteStatus::Completed; 
+                return Status::Completed; 
             },
             _ => panic!("1 to many cycles on ld_r16_u16"),
         }
         *pc += 1;
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -462,14 +468,14 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 3
      */
-    fn ld_r16_a(memory: &mut Memory, a_reg: u8, upper_reg: u8, lower_reg: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_r16_a(memory: &mut Memory, a_reg: u8, upper_reg: u8, lower_reg: u8, machine_cycle: u8) -> Status {
         let address: u16 = (upper_reg as u16) << 8 | lower_reg as u16;
         match machine_cycle {
             1 => memory.write_byte(address, a_reg),
             _ => panic!("1 to many cycles on ld_r16_a") 
         }
 
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -478,7 +484,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn inc_r16(upper_reg: &mut u8, lower_reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn inc_r16(upper_reg: &mut u8, lower_reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let r16 = binary_utils::build_16bit_num(*upper_reg, *lower_reg) + 1;
@@ -487,7 +493,7 @@ impl Cpu {
             }
             _ => panic!("1 to many cycles on inc_r16"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -496,13 +502,13 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn inc_r8(flag_reg: &mut u8, reg: &mut u8,  machine_cycle: u8) -> ExecuteStatus {
+    fn inc_r8(flag_reg: &mut u8, reg: &mut u8,  machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => *reg += 1,
             _ => panic!("1 to many cycles on inc_r8"),
         }
         Cpu::set_flags(flag_reg, Some(*reg == 0), Some(false), Some((*reg & 0xF) + 1 > 0xF), None);
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -511,13 +517,13 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    pub fn dec_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    pub fn dec_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => *reg -= 1,           
             _ => panic!("1 to many cycles on dec_r8"),
         }
         Cpu::set_flags(flag_reg, Some(*reg == 0), Some(true), Some(*reg & 0xF == 0xF), None);
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -526,13 +532,13 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2
      */
-    fn ld_r8_u8(memory: &Memory, reg: &mut u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_r8_u8(memory: &Memory, reg: &mut u8, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => *reg = memory.read_byte(*pc),
             _ => panic!("1 to many cycles on ld_r8_u8"),
         }
         *pc += 1;
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -541,7 +547,7 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn rlca(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rlca(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 Cpu::set_flags(flag_reg, Some(false), Some(false), Some(false), Some(binary_utils::get_bit(*reg_a, 7) != 0));
@@ -549,7 +555,7 @@ impl Cpu {
             }
             _ => panic!("1 to many cycles on RLCA"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -558,15 +564,15 @@ impl Cpu {
      * MACHINE CYCLES: 5
      * INSTRUCTION LENGTH: 3
      */
-    fn ld_u16_sp(memory: &mut Memory, pc: &mut u16, sp: u16, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
-        let mut status = ExecuteStatus::Running;
+    fn ld_u16_sp(memory: &mut Memory, pc: &mut u16, sp: u16, machine_cycle: u8, temp_reg: &mut u16) -> Status {
+        let mut status = Status::Running;
         match machine_cycle {
             1 => { *temp_reg |= memory.read_byte(*pc) as u16; *pc += 1; },        //read lower byte ASSUMING TEMP REG TO BE 0
             2 => { *temp_reg |= (memory.read_byte(*pc) as u16) << 8; *pc += 1; }, //read upper byte 
             3 => memory.write_byte(*temp_reg, sp as u8),
             4 => {
                 memory.write_byte(*temp_reg + 1, (sp >> 8) as u8);
-                status = ExecuteStatus::Completed;
+                status = Status::Completed;
             }
             _ => panic!("1 to many cycles on LD_U16_SP"),
         }
@@ -580,7 +586,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1 
      */
-    fn add_hl_r16(flag_reg: &mut u8, upper_reg: u8, lower_reg: u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn add_hl_r16(flag_reg: &mut u8, upper_reg: u8, lower_reg: u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let reg_16 = binary_utils::build_16bit_num(upper_reg, lower_reg);
@@ -597,7 +603,7 @@ impl Cpu {
             _ => panic!("1 to many cycles on add_hl_r16"),
         }
 
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -606,12 +612,12 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn ld_a_r16(memory: &Memory, reg_a: &mut u8, upper_reg: u8, lower_reg: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_a_r16(memory: &Memory, reg_a: &mut u8, upper_reg: u8, lower_reg: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => *reg_a = memory.read_byte(binary_utils::build_16bit_num(upper_reg, lower_reg)),
             _ => panic!("1 to many cycles on ld_a_r16"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -620,7 +626,7 @@ impl Cpu {
     * MACHINE CYCLES: 2
     * INSTRUCTION LENGTH: 1
     */
-    fn dec_r16(upper_reg: &mut u8, lower_reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn dec_r16(upper_reg: &mut u8, lower_reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let r16 = binary_utils::build_16bit_num(*upper_reg, *lower_reg) - 1;
@@ -631,7 +637,7 @@ impl Cpu {
             _ => panic!("1 to many cycles on dec_r16"),
         }  
 
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -640,7 +646,7 @@ impl Cpu {
     * MACHINE CYCLE: 1
     * INSTRUCTION LENGTH: 1
     */
-    fn rrca(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rrca(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 Cpu::set_flags(flag_reg, Some(false), Some(false), Some(false), Some(binary_utils::get_bit(*reg_a, 0) != 0));
@@ -649,14 +655,14 @@ impl Cpu {
             _ => panic!("1 to many cycles on RLCA"),
         }
 
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
      * THIS IS VERY SPECIAL NEED TO KNOW MORE ABOUT IT. Helps the gameboy
      * get into a very low power state, but also turns off a lot of peripherals
      */
-    fn stop() -> ExecuteStatus {
+    fn stop() -> Status {
         //Need to reset the Timer divider register
         //timer begins ticking again once stop mode ends
         todo!("NEED TO IMPLEMENT THE STOP INSTRUCTION");
@@ -668,7 +674,7 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1 
      */
-    fn rla(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rla(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 Cpu::set_flags(flag_reg, Some(false), Some(false), Some(false), Some(binary_utils::get_bit(*reg_a, 7) != 0));
@@ -677,7 +683,7 @@ impl Cpu {
             _ => panic!("1 to many machine cycles in rla")
         }
 
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -686,13 +692,13 @@ impl Cpu {
      * MACHINE CYCLES: 3
      * INSTRUCTION LENGTH: 2
      */
-    fn jr_i8(memory: &Memory, pc: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
-        let mut status = ExecuteStatus::Running;
+    fn jr_i8(memory: &Memory, pc: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> Status {
+        let mut status = Status::Running;
         match machine_cycle {
             1 => { *temp_reg = memory.read_byte(*pc) as u16; *pc += 1; },
             2 => {
                 *pc = (*pc).wrapping_add_signed(*temp_reg as i16);
-                status = ExecuteStatus::Completed;
+                status = Status::Completed;
             }
             _ => panic!("1 to many machine cycles in jr_i8")
         }
@@ -705,7 +711,7 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn rra(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rra(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 Cpu::set_flags(flag_reg, Some(false), Some(false), Some(false), Some(binary_utils::get_bit(*reg_a, 0) != 0));
@@ -713,7 +719,7 @@ impl Cpu {
             }
             _ => panic!("1 to many machine cycles in rla")
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -722,19 +728,19 @@ impl Cpu {
      * MACHINE CYCLES: 3 IF TAKEN/ 2 IF NOT TAKEN
      * INSTRUCTION LENGTH: 2
      */
-    fn jr_cc_i8(memory: &Memory, pc: &mut u16, condition: bool, machine_cycle: u8, temp_reg: &mut u16)  -> ExecuteStatus {
-        let mut status = ExecuteStatus::Running;
+    fn jr_cc_i8(memory: &Memory, pc: &mut u16, condition: bool, machine_cycle: u8, temp_reg: &mut u16)  -> Status {
+        let mut status = Status::Running;
         match machine_cycle {
             1 => { 
                 *temp_reg = memory.read_byte(*pc) as u16; 
                 *pc += 1; 
                 if !condition {
-                    status = ExecuteStatus::Completed;
+                    status = Status::Completed;
                 }
             },
             2 => {
                 *pc = (*pc).wrapping_add_signed(*temp_reg as i16);
-                status = ExecuteStatus::Completed;
+                status = Status::Completed;
             },
             _ => panic!("1 to many machine cycles in jr_cc_i8"),
         }
@@ -747,7 +753,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn ld_hli_a(memory: &mut Memory, reg_a: &mut u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_hli_a(memory: &mut Memory, reg_a: &mut u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
@@ -759,7 +765,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in ld_hli_a"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -768,7 +774,7 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn daa(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn daa(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let mut carry_flag = false;
@@ -785,7 +791,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in daa"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -794,7 +800,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn ld_a_hli(memory: &Memory, reg_a: &mut u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_a_hli(memory: &Memory, reg_a: &mut u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
@@ -806,7 +812,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in ld_a_hli"),
         }
-        return ExecuteStatus::Completed;                     
+        return Status::Completed;                     
     }
 
     /**
@@ -815,7 +821,7 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn cpl(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn cpl(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 *reg_a = !*reg_a;
@@ -823,7 +829,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in cpl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -832,14 +838,14 @@ impl Cpu {
      * MACHINE CYCLES: 3
      * INSTRUCTION LENGTH: 3
      */
-    fn ld_sp_u16(memory: &Memory, pc: &mut u16, sp: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_sp_u16(memory: &Memory, pc: &mut u16, sp: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => *sp = memory.read_byte(*pc) as u16,
             2 => *sp |= (memory.read_byte(*pc) as u16) << 8,
             _ => panic!("1 to many machine cycles in ld_sp_u16"),
         }
         *pc += 1;
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -848,7 +854,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn ld_hld_a(memory: &mut Memory, reg_a: &mut u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_hld_a(memory: &mut Memory, reg_a: &mut u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
@@ -860,7 +866,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in ld_hld_a"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -869,12 +875,12 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn inc_sp(sp: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn inc_sp(sp: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => *sp += 1,
             _ => panic!("1 to many machine cycles in inc_sp"), 
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -883,7 +889,7 @@ impl Cpu {
      * MACHINE CYCLES: 3
      * INSTRUCTION LENGTH: 1
      */
-    fn inc_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn inc_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (), //should be reading from HL here
             2 => {
@@ -893,11 +899,11 @@ impl Cpu {
                 memory.write_byte(reg_hl, hl_data);
                 Cpu::set_flags(flag_reg, Some(hl_data == 0), Some(false), Some((hl_data & 0xF) + 1 > 0xF), None);
 
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in inc_hl"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -906,7 +912,7 @@ impl Cpu {
     * MACHINE CYCLES: 3
     * INSTRUCTION LENGTH: 1
     */
-    fn dec_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn dec_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (), //read byte at HL. too lazy to implement temp reg at this step just doing it on next step
             2 => {
@@ -915,11 +921,11 @@ impl Cpu {
                 memory.write_byte(reg_hl, hl_data);
 
                 Cpu::set_flags(flag_reg, Some(hl_data == 0), Some(true), Some(hl_data & 0xF == 0xF), None);
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in dec_hl"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -928,7 +934,7 @@ impl Cpu {
      * MACHINE CYCLES: 3
      * INSTRUCTION LENGTH: 2
      */
-    fn ld_hl_u8(memory: &mut Memory, reg_h: u8, reg_l: u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_hl_u8(memory: &mut Memory, reg_h: u8, reg_l: u8, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (),    //Should be reading immediate here
             2 => {
@@ -937,11 +943,11 @@ impl Cpu {
                 *pc += 1;
                 memory.write_byte(reg_hl, immediate);
 
-                return ExecuteStatus::Completed; 
+                return Status::Completed; 
             },
             _ => panic!("1 to many machine cycles in ld_hl_u8"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
         /**
@@ -950,12 +956,12 @@ impl Cpu {
      * MACHINE CYCLE: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn scf(flag_reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn scf(flag_reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => Cpu::set_flags(flag_reg, None, Some(false), Some(false), Some(true)),
             _ => panic!("1 to many machine cycles in scf"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -964,7 +970,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn add_hl_sp(flag_reg: &mut u8, reg_h: &mut u8, reg_l: &mut u8, sp: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn add_hl_sp(flag_reg: &mut u8, reg_h: &mut u8, reg_l: &mut u8, sp: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
@@ -979,7 +985,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in add_hl_sp"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -988,7 +994,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn ld_a_hld(memory: &Memory, reg_a: &mut u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_a_hld(memory: &Memory, reg_a: &mut u8, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
@@ -1000,7 +1006,7 @@ impl Cpu {
             }
             _ => panic!("1 to many machine cycles in add_hl_sp"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
  /**
@@ -1009,25 +1015,25 @@ impl Cpu {
     * MACHINE CYCLES: 2
     * INSTRUCTION LENGTH: 1
     */
-    pub fn dec_sp(sp: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    pub fn dec_sp(sp: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 *sp -= 1;
             }
             _ => panic!("1 to many machine cycles in dec_sp"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
     * Complement the carry flag
     */
-    fn ccf(flag_reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ccf(flag_reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => Cpu::set_flags(flag_reg, None, Some(false), Some(false), Some(Cpu::get_carry_flag(*flag_reg) == 0)),
             _ => panic!("1 to many machine cycles in ccf"), 
         }   
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1036,12 +1042,12 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn ld_r8_r8(reg_right: u8, reg_left: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_r8_r8(reg_right: u8, reg_left: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => *reg_left = reg_right,
             _ => panic!("1 to many machine cycles in ld_r8_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1050,12 +1056,12 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn ld_r8_hl(memory: &Memory, reg_h: u8, reg_l: u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_r8_hl(memory: &Memory, reg_h: u8, reg_l: u8, reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => *reg = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l)),
             _ => panic!("1 to many machine cycles in ld_r8_hl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
         /**
@@ -1064,12 +1070,12 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn ld_hl_r8(memory: &mut Memory, reg: u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_hl_r8(memory: &mut Memory, reg: u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => memory.write_byte(binary_utils::build_16bit_num(reg_h, reg_l), reg),
             _ => panic!("1 to many machine cycles in ld_hl_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1079,7 +1085,7 @@ impl Cpu {
      * MACHINE CYCLES: -
      * INSTRUCTION LENGTH: 1
      */
-    fn halt() -> ExecuteStatus {
+    fn halt() -> Status {
         todo!();
     }
 
@@ -1089,7 +1095,7 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1 
      */
-    fn add_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn add_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let (result, overflow) = (*reg_a).overflowing_add(reg); 
@@ -1099,7 +1105,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in add_a_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1108,7 +1114,7 @@ impl Cpu {
     * MACHINE CYCLES: 2
     * INSTRUCTION LENGTH: 1 
     */
-    fn add_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn add_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let hl_data = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l));
@@ -1120,7 +1126,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in add_a_hl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1129,7 +1135,7 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1 
      */
-    fn adc_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn adc_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let (partial_result, first_overflow) = (*reg_a).overflowing_add(reg);
@@ -1141,7 +1147,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in adc_a_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1150,7 +1156,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1 
      */
-    fn adc_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn adc_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let hl_data = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l));
@@ -1163,7 +1169,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in adc_a_hl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1172,7 +1178,7 @@ impl Cpu {
     * MACHINE CYCLES: 1
     * INSTRUCTION LENGTH: 1
     */
-    fn sub_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn sub_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let result = *reg_a - reg;
@@ -1181,7 +1187,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in sub_a_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1190,7 +1196,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn sub_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn sub_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let hl_data = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l));
@@ -1201,7 +1207,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in sub_a_hl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1210,7 +1216,7 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn sbc_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8 ,machine_cycle: u8) -> ExecuteStatus {
+    fn sbc_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8 ,machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let result = *reg_a - reg - Cpu::get_carry_flag(*flag_reg);
@@ -1219,7 +1225,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in sbc_a_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     } 
 
     /**
@@ -1228,7 +1234,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn sbc_a_hl(flag_reg: &mut u8, reg_h: u8, reg_l: u8, reg_a: &mut u8, memory: &Memory, machine_cycle: u8) -> ExecuteStatus {
+    fn sbc_a_hl(flag_reg: &mut u8, reg_h: u8, reg_l: u8, reg_a: &mut u8, memory: &Memory, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let hl_data = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l));
@@ -1240,7 +1246,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in sbc_a_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
 /**
@@ -1249,7 +1255,7 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn and_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn and_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let result = reg & *reg_a;
@@ -1258,7 +1264,7 @@ impl Cpu {
             } ,
             _ => panic!("1 to many machine cycles in and_a_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1267,7 +1273,7 @@ impl Cpu {
      * MACHINE CYCLE: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn and_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn and_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle { 
             1 => {
                 let hl_data = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l));
@@ -1278,7 +1284,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in and_a_hl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1287,7 +1293,7 @@ impl Cpu {
      * MACHINE CYCLE: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn xor_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn xor_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let result = reg ^ *reg_a;
@@ -1296,7 +1302,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in xor_a_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1305,7 +1311,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn xor_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn xor_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let hl_data = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l));
@@ -1315,7 +1321,7 @@ impl Cpu {
             }
             _ => panic!("1 to many machine cycles in xor_a_hl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1324,7 +1330,7 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn or_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn or_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let result = reg | *reg_a;
@@ -1333,7 +1339,7 @@ impl Cpu {
             }, 
             _ => panic!("1 to many machine cycles in or_a_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
 
     }
 
@@ -1343,7 +1349,7 @@ impl Cpu {
     * MACHINE CYCLES: 2
     * INSTRUCTION LENGTH: 1
     */
-    fn or_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, reg_h: u8, reg_l: u8, machine_cycle: u8)  -> ExecuteStatus {
+    fn or_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, reg_h: u8, reg_l: u8, machine_cycle: u8)  -> Status {
         match machine_cycle {
             1 => {
                 let hl_data = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l));
@@ -1353,7 +1359,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in or_a_hl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     } 
 
     /**
@@ -1362,7 +1368,7 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1    
      */
-    fn cp_a_r8(flag_reg: &mut u8, reg: u8, reg_a: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn cp_a_r8(flag_reg: &mut u8, reg: u8, reg_a: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let result = reg_a - reg;
@@ -1370,7 +1376,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in cp_a_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1379,7 +1385,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn cp_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn cp_a_hl(flag_reg: &mut u8, memory: &Memory, reg_a: u8, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let hl_data = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l));
@@ -1388,7 +1394,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in cp_a_hl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1397,22 +1403,22 @@ impl Cpu {
      * MACHINE CYCLES: 5 IF TAKEN/ 2 IF NOT TAKEN
      * INSTRUCTION LENGTH: 1
      */
-    fn ret_cc(memory: &Memory, sp: &mut u16, pc: &mut u16, condition: bool, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn ret_cc(memory: &Memory, sp: &mut u16, pc: &mut u16, condition: bool, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 if !condition {
-                    return ExecuteStatus::Completed;
+                    return Status::Completed;
                 }
             },
             2 => { *temp_reg = memory.read_byte(*sp) as u16; *sp += 1; },         //Read lower SP byte
             3 => { *temp_reg |= (memory.read_byte(*sp) as u16) << 8; *sp += 1; }, //Read upper SP byte
             4 =>  {
                 *pc = *temp_reg;
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             }
             _ => panic!("1 to many machine cycles in ret_cc"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -1421,7 +1427,7 @@ impl Cpu {
      * MACHINE CYCLES: 3
      * INSTRUCTION LENGTH: 1
      */
-    fn pop(memory: &Memory, upper_reg: &mut u8, lower_reg: &mut u8, sp: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn pop(memory: &Memory, upper_reg: &mut u8, lower_reg: &mut u8, sp: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => { 
                 *lower_reg = memory.read_byte(*sp); 
@@ -1430,11 +1436,11 @@ impl Cpu {
             2 => { 
                 *upper_reg = memory.read_byte(*sp); 
                 *sp += 1; 
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in pop"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1443,7 +1449,7 @@ impl Cpu {
     * MACHINE CYCLES: 4
     * INSTRUCTION LENGTH: 3
     */
-    fn jp_cc_u16(memory: &Memory, pc: &mut u16, condition: bool, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn jp_cc_u16(memory: &Memory, pc: &mut u16, condition: bool, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 *temp_reg = memory.read_byte(*pc) as u16;
@@ -1454,16 +1460,16 @@ impl Cpu {
                 *pc += 1;
 
                 if !condition {
-                    return ExecuteStatus::Completed;
+                    return Status::Completed;
                 }
             },
             3 => {
                 *pc = *temp_reg;
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in jp_cc_u16"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -1472,7 +1478,7 @@ impl Cpu {
     * MACHINE CYCLES: 4
     * INSTRUCTION LENGTH: 3
     */
-    fn jp_u16(memory: &Memory, pc: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn jp_u16(memory: &Memory, pc: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => { 
                 *temp_reg = memory.read_byte(*pc) as u16;
@@ -1484,12 +1490,12 @@ impl Cpu {
             },
             3 => {
                 *pc = *temp_reg;
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in jp_u16"),
         }   
 
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -1498,7 +1504,7 @@ impl Cpu {
      * MACHINE CYCLES: 6 IF TAKEN/ 3 IF NOT TAKEN
      * INSTRUCTION LENGTH: 3
      */
-    fn call_cc_u16(memory: &mut Memory, pc: &mut u16, sp: &mut u16, condition: bool, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn call_cc_u16(memory: &mut Memory, pc: &mut u16, sp: &mut u16, condition: bool, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 *temp_reg = memory.read_byte(*pc) as u16;
@@ -1509,7 +1515,7 @@ impl Cpu {
                 *pc += 1;
 
                 if !condition {
-                    return ExecuteStatus::Completed;
+                    return Status::Completed;
                 }
             },
             3 => {
@@ -1524,11 +1530,11 @@ impl Cpu {
             },
             5 => {
                 *pc = *temp_reg;
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in call_cc_u16"),
         }     
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -1537,7 +1543,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 1
      */
-    fn push_r16(memory: &mut Memory, upper_reg: u8, lower_reg: u8, sp: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn push_r16(memory: &mut Memory, upper_reg: u8, lower_reg: u8, sp: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (), //No clue that this is doing at this cycle
             2 => {
@@ -1547,11 +1553,11 @@ impl Cpu {
             3 => {
                 *sp -= 1;
                 memory.write_byte(*sp, lower_reg);
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in push_r16"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -1560,7 +1566,7 @@ impl Cpu {
      * MACHINE CYCLE: 2
      * INSTRUCTION LENGTH: 2
      */
-    fn add_a_u8(flag_reg: &mut u8, memory: &Memory, pc: &mut u16, reg_a: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn add_a_u8(flag_reg: &mut u8, memory: &Memory, pc: &mut u16, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let value = memory.read_byte(*pc);
@@ -1574,7 +1580,7 @@ impl Cpu {
             }, 
             _ => panic!("1 to many machine cycles in add_a_u8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1583,7 +1589,7 @@ impl Cpu {
      * MACHINE CYCLE: 4
      * INSTRUCTION LENGTH: 1
      */
-    fn rst_vec(memory: &mut Memory, sp: &mut u16, pc: &mut u16, rst_address: u16, machine_cycle: u8) -> ExecuteStatus {
+    fn rst_vec(memory: &mut Memory, sp: &mut u16, pc: &mut u16, rst_address: u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 *sp -= 1;
@@ -1597,11 +1603,11 @@ impl Cpu {
             },
             3 =>{
                 *pc = rst_address;
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in rst_vec"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -1610,7 +1616,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 1
      */
-    fn ret(memory: &Memory, sp: &mut u16, pc: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn ret(memory: &Memory, sp: &mut u16, pc: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 *temp_reg = memory.read_byte(*sp) as u16;
@@ -1622,11 +1628,11 @@ impl Cpu {
             }
             3 =>{
                 *pc = *temp_reg;
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             }
             _ => panic!("1 to many machine cycles in ret"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -1636,7 +1642,7 @@ impl Cpu {
     * MACHINE CYCLES: 6
     * INSTRUCTION LENGTH: 3
     */
-    fn call_u16(memory: &mut Memory, pc: &mut u16, sp: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn call_u16(memory: &mut Memory, pc: &mut u16, sp: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 *temp_reg = memory.read_byte(*pc) as u16;
@@ -1658,11 +1664,11 @@ impl Cpu {
             },
             5 => {
                 *pc = *temp_reg;
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in call_u16"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -1671,7 +1677,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2 
      */
-    fn adc_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn adc_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let value = memory.read_byte(*pc);
@@ -1686,7 +1692,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in adc_a_u8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1695,7 +1701,7 @@ impl Cpu {
     * MACHINE CYCLES: 2
     * INSTRUCTION LENGTH: 2
     */
-    fn sub_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn sub_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let value = memory.read_byte(*pc);
@@ -1707,7 +1713,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in sub_a_u8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1717,7 +1723,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 1
      */
-    fn reti(ime_flag: &mut bool, memory: &Memory, sp: &mut u16, pc: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn reti(ime_flag: &mut bool, memory: &Memory, sp: &mut u16, pc: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 *temp_reg = memory.read_byte(*sp) as u16;
@@ -1730,14 +1736,14 @@ impl Cpu {
             3 => {
                 *pc = *temp_reg;
                 *ime_flag = true;
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             }
             _ => panic!("1 to many machine cycles in reti"),
         }
         todo!("Need to come back to this instruction as we need to delay the EI flag by 1 machine cycle. They say this is like EI then RET so I might just call those 2 functions");
     }
 
-    fn sbc_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn sbc_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let value = memory.read_byte(*pc);
@@ -1749,7 +1755,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in sbc_a_u8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1758,7 +1764,7 @@ impl Cpu {
      * MACHINE CYCLES: 3
      * INSTRUCTION LENGTH: 2
      */
-    fn ldh_u8_a(memory: &mut Memory, pc: &mut u16, reg_a: u8, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn ldh_u8_a(memory: &mut Memory, pc: &mut u16, reg_a: u8, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 *temp_reg = 0xFF00 | (memory.read_byte(*pc) as u16);
@@ -1766,11 +1772,11 @@ impl Cpu {
             }
             2 => {
                 memory.write_byte(*temp_reg, reg_a);
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             }
             _ => panic!("1 to many machine cycles in ldh_u8_a"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -1779,14 +1785,14 @@ impl Cpu {
     * MACHINE CYCLES: 2
     * INSTRUCTION LENGTH: 1
     */
-    fn ldh_c_a(memory: &mut Memory, reg_a: u8, reg_c: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ldh_c_a(memory: &mut Memory, reg_a: u8, reg_c: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 memory.write_byte(0xFF00 | reg_c as u16, reg_a);
             },
             _ => panic!("1 to many machine cycles in ldh_c_a"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1795,7 +1801,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION CYCLES: 2
      */
-    fn and_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn and_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let value = memory.read_byte(*pc);
@@ -1807,7 +1813,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in and_a_u8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1816,7 +1822,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 2
      */
-    fn add_sp_i8(flag_reg: &mut u8, memory: &Memory,sp: &mut u16, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn add_sp_i8(flag_reg: &mut u8, memory: &Memory,sp: &mut u16, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle { 
             1 => {
                 let value = memory.read_byte(*pc);
@@ -1831,7 +1837,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in add_sp_i8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1840,14 +1846,14 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn jp_hl(reg_h: u8, reg_l: u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn jp_hl(reg_h: u8, reg_l: u8, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 *pc = binary_utils::build_16bit_num(reg_h, reg_l);
             },
             _ => panic!("1 to many machine cycles in jp_hl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     
@@ -1857,7 +1863,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 3
      */
-    fn ld_u16_a(memory: &mut Memory, pc: &mut u16, reg_a: u8, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn ld_u16_a(memory: &mut Memory, pc: &mut u16, reg_a: u8, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 *temp_reg = memory.read_byte(*pc) as u16;
@@ -1869,11 +1875,11 @@ impl Cpu {
             },
             3 => {
                 memory.write_byte(*temp_reg, reg_a);
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in ld_u16_a"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -1882,7 +1888,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2
      */
-    fn xor_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn xor_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let value = memory.read_byte(*pc);
@@ -1894,10 +1900,10 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in xor_a_u8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
-    fn ldh_a_u8(memory: &Memory, pc: &mut u16, reg_a: &mut u8, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn ldh_a_u8(memory: &Memory, pc: &mut u16, reg_a: &mut u8, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 *temp_reg = 0xFF00 | (memory.read_byte(*pc) as u16);
@@ -1905,11 +1911,11 @@ impl Cpu {
             },
             2 => {
                 *reg_a = memory.read_byte(*temp_reg);
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in ldh_a_u8"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -1918,14 +1924,14 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn ldh_a_c(memory: &Memory, reg_a: &mut u8, reg_c: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ldh_a_c(memory: &Memory, reg_a: &mut u8, reg_c: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 *reg_a = memory.read_byte(0xFF00 | reg_c as u16);
             },
             _ => panic!("1 to many machine cycles in ldh_a_c"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1934,14 +1940,14 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn di(ime_flag: &mut bool, machine_cycle: u8) -> ExecuteStatus {
+    fn di(ime_flag: &mut bool, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 *ime_flag = false;
             },
             _ => panic!("1 to many machine cycles in di"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1950,7 +1956,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2
      */
-    fn or_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn or_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let value = memory.read_byte(*pc);
@@ -1962,7 +1968,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in or_a_u8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -1971,7 +1977,7 @@ impl Cpu {
      * MACHINE CYCLES: 3
      * INSTRUCTION LENGTH: 2
      */
-    fn ld_hl_sp_i8(flag_reg: &mut u8, memory: &Memory, sp: &mut u16, pc: &mut u16, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_hl_sp_i8(flag_reg: &mut u8, memory: &Memory, sp: &mut u16, pc: &mut u16, reg_h: &mut u8, reg_l: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let value = memory.read_byte(*pc);
@@ -1987,11 +1993,11 @@ impl Cpu {
             2 => {
                 *reg_l = (*sp & 0xFF) as u8;
                 *reg_h = (*sp >> 8) as u8;
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in ld_hl_sp_i8"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -2000,14 +2006,14 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 1
      */
-    fn ld_sp_hl(reg_h: u8, reg_l: u8, sp: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn ld_sp_hl(reg_h: u8, reg_l: u8, sp: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 *sp = binary_utils::build_16bit_num(reg_h, reg_l);
             },
             _ => panic!("1 to many machine cycles in ld_sp_hl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -2016,7 +2022,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 3
      */
-    fn ld_a_u16(memory: &Memory, pc: &mut u16, reg_a: &mut u8, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn ld_a_u16(memory: &Memory, pc: &mut u16, reg_a: &mut u8, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 *temp_reg = memory.read_byte(*pc) as u16;
@@ -2028,11 +2034,11 @@ impl Cpu {
             },
             3 => {
                 *reg_a = memory.read_byte(*temp_reg);
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in ld_a_u16"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -2041,14 +2047,14 @@ impl Cpu {
      * MACHINE CYCLE: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn ei(ime_flag: &mut bool, machine_cycle: u8) -> ExecuteStatus {
+    fn ei(ime_flag: &mut bool, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 *ime_flag = true;
             },
             _ => panic!("1 to many machine cycles in ei"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -2057,7 +2063,7 @@ impl Cpu {
      * MACHINE CYCLE: 2
      * INSTRUCTION LENGTH: 2
      */
-    fn cp_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: u8, pc: &mut u16, machine_cycle: u8) -> ExecuteStatus {
+    fn cp_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: u8, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let value = memory.read_byte(*pc);
@@ -2068,14 +2074,14 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in cp_a_u8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
      * This will execute the instruction of the opcode on the prefix table. 
      * If the instruction is not complete it will return a Running status.
      */
-    fn exexute_prefix(&mut self, memory: &mut Memory, machine_cycle: u8, temp_reg: &mut u16) -> ExecuteStatus {
+    fn exexute_prefix(&mut self, memory: &mut Memory, machine_cycle: u8) -> Status {
         let opcode = memory.read_byte(self.pc);
         self.pc += 1; 
 
@@ -2128,16 +2134,14 @@ impl Cpu {
             0x2D => Cpu::sra_r8(&mut self.f, &mut self.l, machine_cycle),                   //SRA L
             0x2E => Cpu::sra_hl(&mut self.f, memory, self.h, self.l, machine_cycle),        //SRA (HL)
             0x2F => Cpu::sra_r8(&mut self.f, &mut self.a, machine_cycle),                   //SRA A
-            /*0x30 => self.swap_r8(Register::B),
-            0x31 => self.swap_r8(Register::C),
-            0x32 => self.swap_r8(Register::D),
-            0x33 => self.swap_r8(Register::E),
-            0x34 => self.swap_r8(Register::H),
-            0x35 => self.swap_r8(Register::L),
-            0x36 => self.swap_hl(memory),
-            0x37 => self.swap_r8(Register::A),
-            */
-           
+            0x30 => Cpu::swap_r8(&mut self.f, &mut self.b, machine_cycle),                  //SWAP B
+            0x31 => Cpu::swap_r8(&mut self.f, &mut self.c, machine_cycle),                  //SWAP C
+            0x32 => Cpu::swap_r8(&mut self.f, &mut self.d, machine_cycle),                  //SWAP D
+            0x33 => Cpu::swap_r8(&mut self.f, &mut self.e, machine_cycle),                  //SWAP E
+            0x34 => Cpu::swap_r8(&mut self.f, &mut self.h, machine_cycle),                  //SWAP H
+            0x35 => Cpu::swap_r8(&mut self.f, &mut self.l, machine_cycle),                  //SWAP L
+            0x36 => Cpu::swap_hl(&mut self.f, memory, self.a, self.a, machine_cycle),       //SWAP (HL)
+            0x37 => Cpu::swap_r8(&mut self.f, &mut self.a, machine_cycle),                  //SWAP A
             0x38 => Cpu::srl_r8(&mut self.f, &mut self.b, machine_cycle),               //SRL B
             0x39 => Cpu::srl_r8(&mut self.f, &mut self.c, machine_cycle),               //SRL C
             0x3A => Cpu::srl_r8(&mut self.f, &mut self.d, machine_cycle),               //SRL D
@@ -2210,136 +2214,134 @@ impl Cpu {
             0x7D => Cpu::bit_u3_r8(&mut self.f, 7, self.l, machine_cycle),              //BIT 7, L
             0x7E => Cpu::bit_u3_hl(&mut self.f, memory, self.h, self.l, 7, machine_cycle),   //BIT 7, (HL)
             0x7F => Cpu::bit_u3_r8(&mut self.f, 7, self.a, machine_cycle),              //BIT 7, A
-            0x80 => self.res_u3_r8(0, Register::B),
-            0x81 => self.res_u3_r8(0, Register::C),
-            0x82 => self.res_u3_r8(0, Register::D),
-            0x83 => self.res_u3_r8(0, Register::E),
-            0x84 => self.res_u3_r8(0, Register::H),
-            0x85 => self.res_u3_r8(0, Register::L),
-            0x86 => self.res_u3_hl(0, memory),
-            0x87 => self.res_u3_r8(0, Register::A),
-            /*0x88 => self.res_u3_r8(1, Register::B),
-            0x89 => self.res_u3_r8(1, Register::C),
-            0x8A => self.res_u3_r8(1, Register::D),
-            0x8B => self.res_u3_r8(1, Register::E),
-            0x8C => self.res_u3_r8(1, Register::H),
-            0x8D => self.res_u3_r8(1, Register::L),
-            0x8E => self.res_u3_hl(1, memory),
-            0x8F => self.res_u3_r8(1, Register::A),
-            0x90 => self.res_u3_r8(2, Register::B),
-            0x91 => self.res_u3_r8(2, Register::C),
-            0x92 => self.res_u3_r8(2, Register::D),
-            0x93 => self.res_u3_r8(2, Register::E),
-            0x94 => self.res_u3_r8(2, Register::H),
-            0x95 => self.res_u3_r8(2, Register::L),
-            0x96 => self.res_u3_hl(2, memory),
-            0x97 => self.res_u3_r8(2, Register::A),
-            0x98 => self.res_u3_r8(3, Register::B),
-            0x99 => self.res_u3_r8(3, Register::C),
-            0x9A => self.res_u3_r8(3, Register::D),
-            0x9B => self.res_u3_r8(3, Register::E),
-            0x9C => self.res_u3_r8(3, Register::H),
-            0x9D => self.res_u3_r8(3, Register::L),
-            0x9E => self.res_u3_hl(3, memory),
-            0x9F => self.res_u3_r8(3, Register::A),
-            0xA0 => self.res_u3_r8(4, Register::B),
-            0xA1 => self.res_u3_r8(4, Register::C),
-            0xA2 => self.res_u3_r8(4, Register::D),
-            0xA3 => self.res_u3_r8(4, Register::E),
-            0xA4 => self.res_u3_r8(4, Register::H),
-            0xA5 => self.res_u3_r8(4, Register::L),
-            0xA6 => self.res_u3_hl(4, memory),
-            0xA7 => self.res_u3_r8(4, Register::A),
-            0xA8 => self.res_u3_r8(5, Register::B),
-            0xA9 => self.res_u3_r8(5, Register::C),
-            0xAA => self.res_u3_r8(5, Register::D),
-            0xAB => self.res_u3_r8(5, Register::E),
-            0xAC => self.res_u3_r8(5, Register::H),
-            0xAD => self.res_u3_r8(5, Register::L),
-            0xAE => self.res_u3_hl(5, memory),
-            0xAF => self.res_u3_r8(5, Register::A),
-            0xB0 => self.res_u3_r8(6, Register::B),
-            0xB1 => self.res_u3_r8(6, Register::C),
-            0xB2 => self.res_u3_r8(6, Register::D),
-            0xB3 => self.res_u3_r8(6, Register::E),
-            0xB4 => self.res_u3_r8(6, Register::H),
-            0xB5 => self.res_u3_r8(6, Register::L),
-            0xB6 => self.res_u3_hl(6, memory),
-            0xB7 => self.res_u3_r8(6, Register::A),
-            0xB8 => self.res_u3_r8(7, Register::B),
-            0xB9 => self.res_u3_r8(7, Register::C),
-            0xBA => self.res_u3_r8(7, Register::D),
-            0xBB => self.res_u3_r8(7, Register::E),
-            0xBC => self.res_u3_r8(7, Register::H),
-            0xBD => self.res_u3_r8(7, Register::L),
-            0xBE => self.res_u3_hl(7, memory),
-            0xBF => self.res_u3_r8(7, Register::A),
-            0xC0 => self.set_u3_r8(0, Register::B),
-            0xC1 => self.set_u3_r8(0, Register::C),
-            0xC2 => self.set_u3_r8(0, Register::D),
-            0xC3 => self.set_u3_r8(0, Register::E),
-            0xC4 => self.set_u3_r8(0, Register::H),
-            0xC5 => self.set_u3_r8(0, Register::L),
-            0xC6 => self.set_u3_hl(0, memory),
-            0xC7 => self.set_u3_r8(0, Register::A),
-            0xC8 => self.set_u3_r8(1, Register::B),
-            0xC9 => self.set_u3_r8(1, Register::C),
-            0xCA => self.set_u3_r8(1, Register::D),
-            0xCB => self.set_u3_r8(1, Register::E),
-            0xCC => self.set_u3_r8(1, Register::H),
-            0xCD => self.set_u3_r8(1, Register::L),
-            0xCE => self.set_u3_hl(1, memory),
-            0xCF => self.set_u3_r8(1, Register::A),
-            0xD0 => self.set_u3_r8(2, Register::B),
-            0xD1 => self.set_u3_r8(2, Register::C),
-            0xD2 => self.set_u3_r8(2, Register::D),
-            0xD3 => self.set_u3_r8(2, Register::E),
-            0xD4 => self.set_u3_r8(2, Register::H),
-            0xD5 => self.set_u3_r8(2, Register::L),
-            0xD6 => self.set_u3_hl(2, memory),
-            0xD7 => self.set_u3_r8(2, Register::A),
-            0xD8 => self.set_u3_r8(3, Register::B),
-            0xD9 => self.set_u3_r8(3, Register::C),
-            0xDA => self.set_u3_r8(3, Register::D),
-            0xDB => self.set_u3_r8(3, Register::E),
-            0xDC => self.set_u3_r8(3, Register::H),
-            0xDD => self.set_u3_r8(3, Register::L),
-            0xDE => self.set_u3_hl(3, memory),
-            0xDF => self.set_u3_r8(3, Register::A),
-            0xE0 => self.set_u3_r8(4, Register::B),
-            0xE1 => self.set_u3_r8(4, Register::C),
-            0xE2 => self.set_u3_r8(4, Register::D),
-            0xE3 => self.set_u3_r8(4, Register::E),
-            0xE4 => self.set_u3_r8(4, Register::H),
-            0xE5 => self.set_u3_r8(4, Register::L),
-            0xE6 => self.set_u3_hl(4, memory),
-            0xE7 => self.set_u3_r8(4, Register::A),
-            0xE8 => self.set_u3_r8(5, Register::B),
-            0xE9 => self.set_u3_r8(5, Register::C),
-            0xEA => self.set_u3_r8(5, Register::D),
-            0xEB => self.set_u3_r8(5, Register::E),
-            0xEC => self.set_u3_r8(5, Register::H),
-            0xED => self.set_u3_r8(5, Register::L),
-            0xEE => self.set_u3_hl(5, memory),
-            0xEF => self.set_u3_r8(5, Register::A),
-            0xF0 => self.set_u3_r8(6, Register::B),
-            0xF1 => self.set_u3_r8(6, Register::C),
-            0xF2 => self.set_u3_r8(6, Register::D),
-            0xF3 => self.set_u3_r8(6, Register::E),
-            0xF4 => self.set_u3_r8(6, Register::H),
-            0xF5 => self.set_u3_r8(6, Register::L),
-            0xF6 => self.set_u3_hl(6, memory),
-            0xF7 => self.set_u3_r8(6, Register::A),
-            0xF8 => self.set_u3_r8(7, Register::B),
-            0xF9 => self.set_u3_r8(7, Register::C),
-            0xFA => self.set_u3_r8(7, Register::D),
-            0xFB => self.set_u3_r8(7, Register::E),
-            0xFC => self.set_u3_r8(7, Register::H),
-            0xFD => self.set_u3_r8(7, Register::L),
-            0xFE => self.set_u3_hl(7, memory),
-            0xFF => self.set_u3_r8(7, Register::A),
-            */
-            _ => panic!("opcode is not recognized"),
+            0x80 => Cpu::res_u3_r8(&mut self.b, 0, machine_cycle),                      //RES 0, B
+            0x81 => Cpu::res_u3_r8(&mut self.c, 0, machine_cycle),                      //RES 0, C
+            0x82 => Cpu::res_u3_r8(&mut self.d, 0, machine_cycle),                      //RES 0, D
+            0x83 => Cpu::res_u3_r8(&mut self.e, 0, machine_cycle),                      //RES 0, E
+            0x84 => Cpu::res_u3_r8(&mut self.h, 0, machine_cycle),                      //RES 0, H
+            0x85 => Cpu::res_u3_r8(&mut self.l, 0, machine_cycle),                      //RES 0, L
+            0x86 => Cpu::res_u3_hl(memory, self.h, self.l, 0, machine_cycle),           //RES 0, (HL)
+            0x87 => Cpu::res_u3_r8(&mut self.a, 0, machine_cycle),                      //RES 0, A
+            0x88 => Cpu::res_u3_r8(&mut self.b, 1, machine_cycle),                      //RES 1, B
+            0x89 => Cpu::res_u3_r8(&mut self.c, 1, machine_cycle),                      //RES 1, C
+            0x8A => Cpu::res_u3_r8(&mut self.d, 1, machine_cycle),                      //RES 1, D
+            0x8B => Cpu::res_u3_r8(&mut self.e, 1, machine_cycle),                      //RES 1, E
+            0x8C => Cpu::res_u3_r8(&mut self.h, 1, machine_cycle),                      //RES 1, H
+            0x8D => Cpu::res_u3_r8(&mut self.l, 1, machine_cycle),                      //RES 1, L
+            0x8E => Cpu::res_u3_hl(memory, self.h, self.l, 1, machine_cycle),           //RES 1, (HL)
+            0x8F => Cpu::res_u3_r8(&mut self.a, 1, machine_cycle),                      //RES 1, A
+            0x90 => Cpu::res_u3_r8(&mut self.b, 2, machine_cycle),                      //RES 2, B
+            0x91 => Cpu::res_u3_r8(&mut self.c, 2, machine_cycle),                      //RES 2, C
+            0x92 => Cpu::res_u3_r8(&mut self.d, 2, machine_cycle),                      //RES 2, D
+            0x93 => Cpu::res_u3_r8(&mut self.e, 2, machine_cycle),                      //RES 2, E
+            0x94 => Cpu::res_u3_r8(&mut self.h, 2, machine_cycle),                      //RES 2, H
+            0x95 => Cpu::res_u3_r8(&mut self.l, 2, machine_cycle),                      //RES 2, L
+            0x96 => Cpu::res_u3_hl(memory, self.h, self.l, 2, machine_cycle),           //RES 2, (HL)
+            0x97 => Cpu::res_u3_r8(&mut self.a, 2, machine_cycle),                      //RES 2, A
+            0x98 => Cpu::res_u3_r8(&mut self.b, 3, machine_cycle),                      //RES 3, B
+            0x99 => Cpu::res_u3_r8(&mut self.c, 3, machine_cycle),                      //RES 3, C
+            0x9A => Cpu::res_u3_r8(&mut self.d, 3, machine_cycle),                      //RES 3, D
+            0x9B => Cpu::res_u3_r8(&mut self.e, 3, machine_cycle),                      //RES 3, E
+            0x9C => Cpu::res_u3_r8(&mut self.h, 3, machine_cycle),                      //RES 3, H
+            0x9D => Cpu::res_u3_r8(&mut self.l, 3, machine_cycle),                      //RES 3, L
+            0x9E => Cpu::res_u3_hl(memory, self.h, self.l, 3, machine_cycle),           //RES 3, (HL)
+            0x9F => Cpu::res_u3_r8(&mut self.a, 3, machine_cycle),                      //RES 3, A
+            0xA0 => Cpu::res_u3_r8(&mut self.b, 4, machine_cycle),                      //RES 4, B
+            0xA1 => Cpu::res_u3_r8(&mut self.c, 4, machine_cycle),                      //RES 4, C
+            0xA2 => Cpu::res_u3_r8(&mut self.d, 4, machine_cycle),                      //RES 4, D
+            0xA3 => Cpu::res_u3_r8(&mut self.e, 4, machine_cycle),                      //RES 4, E
+            0xA4 => Cpu::res_u3_r8(&mut self.h, 4, machine_cycle),                      //RES 4, H
+            0xA5 => Cpu::res_u3_r8(&mut self.l, 4, machine_cycle),                      //RES 4, L
+            0xA6 => Cpu::res_u3_hl(memory, self.h, self.l, 4, machine_cycle),           //RES 4, (HL)
+            0xA7 => Cpu::res_u3_r8(&mut self.a, 4, machine_cycle),                      //RES 4, A
+            0xA8 => Cpu::res_u3_r8(&mut self.b, 5, machine_cycle),                      //RES 5, B
+            0xA9 => Cpu::res_u3_r8(&mut self.c, 5, machine_cycle),                      //RES 5, C
+            0xAA => Cpu::res_u3_r8(&mut self.d, 5, machine_cycle),                      //RES 5, D
+            0xAB => Cpu::res_u3_r8(&mut self.e, 5, machine_cycle),                      //RES 5, E
+            0xAC => Cpu::res_u3_r8(&mut self.h, 5, machine_cycle),                      //RES 5, H
+            0xAD => Cpu::res_u3_r8(&mut self.l, 5, machine_cycle),                      //RES 5, L
+            0xAE => Cpu::res_u3_hl(memory, self.h, self.l, 5, machine_cycle),           //RES 5, (HL)
+            0xAF => Cpu::res_u3_r8(&mut self.a, 5, machine_cycle),                      //RES 5, A
+            0xB0 => Cpu::res_u3_r8(&mut self.b, 6, machine_cycle),                      //RES 6, B
+            0xB1 => Cpu::res_u3_r8(&mut self.c, 6, machine_cycle),                      //RES 6, C
+            0xB2 => Cpu::res_u3_r8(&mut self.d, 6, machine_cycle),                      //RES 6, D
+            0xB3 => Cpu::res_u3_r8(&mut self.e, 6, machine_cycle),                      //RES 6, E
+            0xB4 => Cpu::res_u3_r8(&mut self.h, 6, machine_cycle),                      //RES 6, H
+            0xB5 => Cpu::res_u3_r8(&mut self.l, 6, machine_cycle),                      //RES 6, L
+            0xB6 => Cpu::res_u3_hl(memory, self.h, self.l, 6, machine_cycle),           //RES 6, (HL)
+            0xB7 => Cpu::res_u3_r8(&mut self.a, 6, machine_cycle),                      //RES 6, A
+            0xB8 => Cpu::res_u3_r8(&mut self.b, 7, machine_cycle),                      //RES 7, B
+            0xB9 => Cpu::res_u3_r8(&mut self.c, 7, machine_cycle),                      //RES 7, C
+            0xBA => Cpu::res_u3_r8(&mut self.d, 7, machine_cycle),                      //RES 7, D
+            0xBB => Cpu::res_u3_r8(&mut self.e, 7, machine_cycle),                      //RES 7, E
+            0xBC => Cpu::res_u3_r8(&mut self.h, 7, machine_cycle),                      //RES 7, H
+            0xBD => Cpu::res_u3_r8(&mut self.l, 7, machine_cycle),                      //RES 7, L
+            0xBE => Cpu::res_u3_hl(memory, self.h, self.l, 7, machine_cycle),           //RES 7, (HL)
+            0xBF => Cpu::res_u3_r8(&mut self.a, 7, machine_cycle),                      //RES 7, A
+            0xC0 => Cpu::set_u3_r8(&mut self.b, 0, machine_cycle),                      //SET 0, B
+            0xC1 => Cpu::set_u3_r8(&mut self.c, 0, machine_cycle),                      //SET 0, C
+            0xC2 => Cpu::set_u3_r8(&mut self.d, 0, machine_cycle),                      //SET 0, D
+            0xC3 => Cpu::set_u3_r8(&mut self.e, 0, machine_cycle),                      //SET 0, E
+            0xC4 => Cpu::set_u3_r8(&mut self.h, 0, machine_cycle),                      //SET 0, H
+            0xC5 => Cpu::set_u3_r8(&mut self.l, 0, machine_cycle),                      //SET 0, L
+            0xC6 => Cpu::set_u3_hl(memory, self.h, self.l, 0, machine_cycle),           //SET 0, (HL)
+            0xC7 => Cpu::set_u3_r8(&mut self.a, 0, machine_cycle),                      //SET 0, A
+            0xC8 => Cpu::set_u3_r8(&mut self.b, 1, machine_cycle),                      //SET 1, B
+            0xC9 => Cpu::set_u3_r8(&mut self.c, 1, machine_cycle),                      //SET 1, C
+            0xCA => Cpu::set_u3_r8(&mut self.d, 1, machine_cycle),                      //SET 1, D
+            0xCB => Cpu::set_u3_r8(&mut self.e, 1, machine_cycle),                      //SET 1, E
+            0xCC => Cpu::set_u3_r8(&mut self.h, 1, machine_cycle),                      //SET 1, H
+            0xCD => Cpu::set_u3_r8(&mut self.l, 1, machine_cycle),                      //SET 1, L
+            0xCE => Cpu::set_u3_hl(memory, self.h, self.l, 1, machine_cycle),           //SET 1, (HL)
+            0xCF => Cpu::set_u3_r8(&mut self.a, 1, machine_cycle),                      //SET 1, A
+            0xD0 => Cpu::set_u3_r8(&mut self.b, 2, machine_cycle),                      //SET 2, B
+            0xD1 => Cpu::set_u3_r8(&mut self.c, 2, machine_cycle),                      //SET 2, C
+            0xD2 => Cpu::set_u3_r8(&mut self.d, 2, machine_cycle),                      //SET 2, D
+            0xD3 => Cpu::set_u3_r8(&mut self.e, 2, machine_cycle),                      //SET 2, E
+            0xD4 => Cpu::set_u3_r8(&mut self.h, 2, machine_cycle),                      //SET 2, H
+            0xD5 => Cpu::set_u3_r8(&mut self.l, 2, machine_cycle),                      //SET 2, L
+            0xD6 => Cpu::set_u3_hl(memory, self.h, self.l, 2, machine_cycle),           //SET 2, (HL)
+            0xD7 => Cpu::set_u3_r8(&mut self.a, 2, machine_cycle),                      //SET 2, A
+            0xD8 => Cpu::set_u3_r8(&mut self.b, 3, machine_cycle),                      //SET 3, B
+            0xD9 => Cpu::set_u3_r8(&mut self.c, 3, machine_cycle),                      //SET 3, C
+            0xDA => Cpu::set_u3_r8(&mut self.d, 3, machine_cycle),                      //SET 3, D
+            0xDB => Cpu::set_u3_r8(&mut self.e, 3, machine_cycle),                      //SET 3, E
+            0xDC => Cpu::set_u3_r8(&mut self.h, 3, machine_cycle),                      //SET 3, H
+            0xDD => Cpu::set_u3_r8(&mut self.l, 3, machine_cycle),                      //SET 3, L
+            0xDE => Cpu::set_u3_hl(memory, self.h, self.l, 3, machine_cycle),           //SET 3, (HL)
+            0xDF => Cpu::set_u3_r8(&mut self.a, 3, machine_cycle),                      //SET 3, A
+            0xE0 => Cpu::set_u3_r8(&mut self.b, 4, machine_cycle),                      //SET 4, B
+            0xE1 => Cpu::set_u3_r8(&mut self.c, 4, machine_cycle),                      //SET 4, C
+            0xE2 => Cpu::set_u3_r8(&mut self.d, 4, machine_cycle),                      //SET 4, D
+            0xE3 => Cpu::set_u3_r8(&mut self.e, 4, machine_cycle),                      //SET 4, E
+            0xE4 => Cpu::set_u3_r8(&mut self.h, 4, machine_cycle),                      //SET 4, H,
+            0xE5 => Cpu::set_u3_r8(&mut self.l, 4, machine_cycle),                      //SET 4, L
+            0xE6 => Cpu::set_u3_hl(memory, self.h, self.l, 4, machine_cycle),           //SET 4, (HL)
+            0xE7 => Cpu::set_u3_r8(&mut self.a, 4, machine_cycle),                      //SET 4, A
+            0xE8 => Cpu::set_u3_r8(&mut self.b, 5, machine_cycle),                      //SET 5, B
+            0xE9 => Cpu::set_u3_r8(&mut self.c, 5, machine_cycle),                      //SET 5, C
+            0xEA => Cpu::set_u3_r8(&mut self.d, 5, machine_cycle),                      //SET 5, D
+            0xEB => Cpu::set_u3_r8(&mut self.e, 5, machine_cycle),                      //SET 5, E
+            0xEC => Cpu::set_u3_r8(&mut self.h, 5, machine_cycle),                      //SET 5, H
+            0xED => Cpu::set_u3_r8(&mut self.l, 5, machine_cycle),                      //SET 5, L
+            0xEE => Cpu::set_u3_hl(memory, self.h, self.l, 5, machine_cycle),           //SET 5, (HL)
+            0xEF => Cpu::set_u3_r8(&mut self.a, 5, machine_cycle),                      //SET 5, A
+            0xF0 => Cpu::set_u3_r8(&mut self.b, 6, machine_cycle),                      //SET 6, B
+            0xF1 => Cpu::set_u3_r8(&mut self.c, 6, machine_cycle),                      //SET 6, C
+            0xF2 => Cpu::set_u3_r8(&mut self.d, 6, machine_cycle),                      //SET 6, D
+            0xF3 => Cpu::set_u3_r8(&mut self.e, 6, machine_cycle),                      //SET 6, E
+            0xF4 => Cpu::set_u3_r8(&mut self.h, 6, machine_cycle),                      //SET 6, H
+            0xF5 => Cpu::set_u3_r8(&mut self.l, 6, machine_cycle),                      //SET 6, L
+            0xF6 => Cpu::set_u3_hl(memory, self.h, self.l, 6, machine_cycle),           //SET 6, (HL)
+            0xF7 => Cpu::set_u3_r8(&mut self.a, 6, machine_cycle),                      //SET 6, A
+            0xF8 => Cpu::set_u3_r8(&mut self.b, 7, machine_cycle),                      //SET 7, B
+            0xF9 => Cpu::set_u3_r8(&mut self.c, 7, machine_cycle),                      //SET 7, C
+            0xFA => Cpu::set_u3_r8(&mut self.d, 7, machine_cycle),                      //SET 7, D
+            0xFB => Cpu::set_u3_r8(&mut self.e, 7, machine_cycle),                      //SET 7, E
+            0xFC => Cpu::set_u3_r8(&mut self.h, 7, machine_cycle),                      //SET 7, H
+            0xFD => Cpu::set_u3_r8(&mut self.l, 7, machine_cycle),                      //SET 7, L
+            0xFE => Cpu::set_u3_hl(memory, self.h, self.l, 7, machine_cycle),           //SET 7, (HL)
+            0xFF => Cpu::set_u3_r8(&mut self.a, 7, machine_cycle),                      //SET 7, A
         }
     }
 
@@ -2349,7 +2351,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2
      */
-    fn rlc_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rlc_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let result = (*reg).rotate_left(1);
@@ -2358,7 +2360,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in rlc_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -2367,7 +2369,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 2
      */
-    fn rlc_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rlc_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (), //Should be reading from hl here but nah
             2 => {
@@ -2375,11 +2377,11 @@ impl Cpu {
                 let result = value.rotate_left(1);
                 memory.write_byte(build_16bit_num(reg_h, reg_l), result);
                 Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(result & 0x01 == 0x01));
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in rlc_hl"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -2388,7 +2390,7 @@ impl Cpu {
     * MACHINE CYCLE: 2
     * INSTRUCTION LENGTH: 2
     */
-    fn rrc_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rrc_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let result = (*reg).rotate_right(1);
@@ -2397,7 +2399,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in rrc_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
 
@@ -2407,7 +2409,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 2
      */
-    fn rrc_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rrc_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (), //Should be reading from hl here but nah
             2 => {
@@ -2415,11 +2417,11 @@ impl Cpu {
                 let result = hl_data.rotate_right(1);
                 memory.write_byte(build_16bit_num(reg_h, reg_l), result);
                 Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(result & 0x80 == 0x80));
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in rrc_hl"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -2428,7 +2430,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2 
      */
-    fn rl_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rl_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let rotated_bit: u8 = binary_utils::get_bit(*reg, 7);
@@ -2437,7 +2439,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in rl_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -2446,7 +2448,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 2
      */
-    fn rl_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rl_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (), //Should be reading from hl here but nah
             2 => {
@@ -2456,11 +2458,11 @@ impl Cpu {
                 memory.write_byte(build_16bit_num(reg_h, reg_l), result);
 
                 Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(rotated_bit != 0));
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in rl_hl"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -2469,7 +2471,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2
      */
-    fn rr_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rr_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let rotated_bit: u8 = binary_utils::get_bit(*reg, 0);
@@ -2478,7 +2480,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in rr_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     
@@ -2488,7 +2490,7 @@ impl Cpu {
      * MACHINE CYCLE: 4
      * INSTRUCTION LENGTH: 2
      */
-    fn rr_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn rr_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (), //Should be reading from hl here but nah
             2 => {
@@ -2498,11 +2500,11 @@ impl Cpu {
                 memory.write_byte(build_16bit_num(reg_h, reg_l), result);
 
                 Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(rotated_bit != 0));
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in rr_hl"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -2511,7 +2513,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2
      */
-    fn sla_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn sla_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let rotated_bit: u8 = binary_utils::get_bit(*reg, 7);
@@ -2520,7 +2522,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in sla_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -2529,7 +2531,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 2
      */
-    fn sla_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn sla_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (), //Should be reading from hl here but nah
             2 => {
@@ -2539,11 +2541,11 @@ impl Cpu {
                 memory.write_byte(build_16bit_num(reg_h, reg_l), result);
 
                 Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(rotated_bit != 0));
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in sla_hl"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -2552,7 +2554,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2
      */
-    fn sra_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn sra_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let rotated_bit: u8 = binary_utils::get_bit(*reg, 0);
@@ -2561,7 +2563,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in sra_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -2570,7 +2572,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 2
      */
-    fn sra_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn sra_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (), //Should be reading from hl here but nah
             2 => {
@@ -2580,43 +2582,55 @@ impl Cpu {
                 memory.write_byte(build_16bit_num(reg_h, reg_l), result);
 
                 Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(rotated_bit != 0));
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in sra_hl"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
-    /*
-    pub fn swap_r8(&mut self, reg: Register) {
-        let reg_value = match reg {
-            Register::A => &mut self.a,
-            Register::B => &mut self.b,
-            Register::C => &mut self.c,
-            Register::D => &mut self.d,
-            Register::E => &mut self.e,
-            Register::F => panic!("Cannot use register f (sra_r8)"),
-            Register::H => &mut self.h,
-            Register::L => &mut self.l,
-            _ => panic!("Cannot use register sp and pc (sra_r8)"),
-        };
-
-        let lower_nibble = *reg_value >> 4;
-        let result = (*reg_value << 4) | lower_nibble;
-
-        *reg_value = result;
-        
-        if result != 0 {
-            self.set_zero_flag();
-        } else {
-            self.reset_zero_flag();
+    /**
+     * Swap the upper 4 bits in register r8 and the lower 4 ones.
+     * 
+     * MACHINE CYCLES: 2
+     * INSTRUCTION LENGTH: 2
+     */
+    fn swap_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> Status {
+        match machine_cycle {
+            1 => {
+                let lower_nibble = *reg >> 4;
+                let result = (*reg << 4) | lower_nibble;
+                *reg = result;
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(false));
+            },
+            _ => panic!("1 to many machine cycles in swap_r8"),
         }
-
-        self.reset_add_sub_flag();
-        self.reset_half_carry_flag();
-        self.reset_carry_flag();
+        return Status::Completed;
     }
-   */ 
+
+    /**
+     * Swap the upper 4 bits in the byte pointed to by HL and the lower 4 ones.
+     * 
+     * MACHINE CYCLES: 4
+     * INSTRUCTION LENGTH: 2
+     */
+    fn swap_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
+        match machine_cycle {
+            1 => (), //Should be reading from hl here but nah
+            2 => {
+                let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
+                let lower_nibble = hl_data >> 4;
+                let result = (hl_data << 4) | lower_nibble;
+                memory.write_byte(build_16bit_num(reg_h, reg_l), result);
+
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(false));
+                return Status::Completed;
+            },
+            _ => panic!("1 to many machine cycles in swap_hl"),
+        }
+        return Status::Running;
+    }
+   
 
     /**
      * Shift Right Logically register r8.
@@ -2624,7 +2638,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2
      */
-    fn srl_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> ExecuteStatus {
+    fn srl_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let rotated_bit: u8 = binary_utils::get_bit(*reg, 0);
@@ -2633,7 +2647,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in srl_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -2642,7 +2656,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 2
      */
-    fn srl_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn srl_hl(flag_reg: &mut u8, memory: &mut Memory, reg_h: u8, reg_l: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (), //Should be reading from hl here but nah
             2 => {
@@ -2652,11 +2666,11 @@ impl Cpu {
                 memory.write_byte(build_16bit_num(reg_h, reg_l), result);
 
                 Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(rotated_bit != 0));
-                return ExecuteStatus::Completed;
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in srl_hl"),
         }
-        return ExecuteStatus::Running;
+        return Status::Running;
     }
 
     /**
@@ -2665,7 +2679,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2
      */
-    fn bit_u3_r8(flag_reg: &mut u8, reg: u8, bit_to_test: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn bit_u3_r8(flag_reg: &mut u8, reg: u8, bit_to_test: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let result = binary_utils::get_bit(reg, bit_to_test);
@@ -2673,7 +2687,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in bit_u3_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -2682,7 +2696,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 2
      */
-    fn bit_u3_hl(flag_reg: &mut u8, memory: &Memory, reg_h: u8, reg_l: u8, bit_to_test: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn bit_u3_hl(flag_reg: &mut u8, memory: &Memory, reg_h: u8, reg_l: u8, bit_to_test: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (), //Should be reading from hl here but nah
             2 => {
@@ -2692,7 +2706,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in bit_u3_hl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -2701,7 +2715,7 @@ impl Cpu {
      * MACHINE CYCLES: 2
      * INSTRUCTION LENGTH: 2
      */
-    fn res_u3_r8(reg: &mut u8, bit_to_reset: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn res_u3_r8(reg: &mut u8, bit_to_reset: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
                 let result = *reg & !(0x1 << bit_to_reset);
@@ -2709,7 +2723,7 @@ impl Cpu {
             }, 
             _ => panic!("1 to many machine cycles in res_u3_r8"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
     /**
@@ -2718,7 +2732,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 2
      */
-    fn res_u3_hl(memory: &mut Memory, reg_h: u8, reg_l: u8, bit_to_reset: u8, machine_cycle: u8) -> ExecuteStatus {
+    fn res_u3_hl(memory: &mut Memory, reg_h: u8, reg_l: u8, bit_to_reset: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => (), //Should be reading from hl here but nah
             2 => {
@@ -2728,9 +2742,44 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in res_u3_hl"),
         }
-        return ExecuteStatus::Completed;
+        return Status::Completed;
     }
 
+    /**
+     * Set bit u3 in register r8 to 1. Bit 0 is the rightmost one, bit 7 the leftmost one.
+     * 
+     * MACHINE CYCLES: 2
+     * INSTRUCTION LENGTH: 2
+     */
+    fn set_u3_r8(reg: &mut u8, bit_to_set: u8, machine_cycle: u8) -> Status {
+        match machine_cycle {
+            1 => {
+                let result = *reg | (0x1 << bit_to_set);
+                *reg = result;
+            },
+            _ => panic!("1 to many machine cycles in set_u3_r8"),
+        }
+        return Status::Completed;
+    }
+
+    /**
+     * Set bit u3 in the byte pointed to by HL to 1. Bit 0 is the rightmost one, bit 7 the leftmost one.
+     * 
+     * MACHINE CYCLES: 4
+     * INSTRUCTION LENGTH: 2
+     */
+    fn set_u3_hl(memory: &mut Memory, reg_h: u8, reg_l: u8, bit_to_set: u8, machine_cycle: u8) -> Status {
+        match machine_cycle {
+            1 => (), //Should be reading from hl here but nah
+            2 => {
+                let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
+                let result = hl_data | (0x1 << bit_to_set);
+                memory.write_byte(build_16bit_num(reg_h, reg_l), result);
+            },
+            _ => panic!("1 to many machine cycles in set_u3_hl"),
+        }
+        return Status::Completed;
+    }
 
 
 
