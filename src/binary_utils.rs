@@ -16,3 +16,11 @@ pub fn split_16bit_num(value: u16) -> (u8, u8) {
 
     return (upper_byte, lower_byte);
 }
+
+pub fn set_bit(value: u8, bit_position: u8) -> u8 {
+    return value | (0x1 << bit_position);
+}
+
+pub fn reset_bit(value: u8, bit_position: u8) -> u8 {
+    return value & !(0x1 << bit_position);
+}

@@ -1,45 +1,49 @@
 use core::panic;
 
 use crate::{cpu_state::Status, memory::Memory};
+use crate::binary_utils;
 
 struct InterruptHandler {
     ime_flag: bool,
-    interrupt_enable_reg: u8,
-    interrupt_flag_reg: u8,
+    ie_reg: u8,
+    if_reg: u8,
     handling_interrupt: bool,
+    interrupt_being_handled: u8,
 }
 
 impl InterruptHandler {
-    fn handle_interrupt(&mut self, memory: &mut Memory, pc: u16, sp: &mut u16, machine_cycle: u8) -> Status {
-        let enabled_and_requested_interrupts = self.interrupt_enable_reg & self.interrupt_flag_reg;
+    fn handle_interrupt(&mut self, memory: &mut Memory, pc: &mut u16, sp: &mut u16, machine_cycle: u8) -> Status {
+        let enabled_and_requested_interrupts = self.ie_reg & self.if_reg;
         if (self.ime_flag && enabled_and_requested_interrupts != 0) || self.handling_interrupt {
             match machine_cycle {
-                1 | 2 => {
+                1 => {
                     self.handling_interrupt = true;
                     self.ime_flag = false;
-                    
-                }, //Do nothing for the first two machine cycles but we'll just setup some flags
+                    for bit_pos in 0..=4 {
+                        if binary_utils::get_bit(self.if_reg, bit_pos) != 0 {
+                            self.if_reg = binary_utils::reset_bit(self.if_reg, bit_pos); 
+                            self.interrupt_being_handled = bit_pos;
+                        }
+                    }   
+                },
+                2 => (), //Do nothing for the first two machine cycles but we'll just setup some flags
                 3 => {
                     *sp -= 1;
-                    memory.write_byte(*sp, (pc >> 8) as u8);
+                    memory.write_byte(*sp, (*pc >> 8) as u8);
                 },
                 4 => {
                     *sp -= 1;
-                    memory.write_byte(*sp, pc as u8);
+                    memory.write_byte(*sp, *pc as u8);
                 },
                 5 => {
-                    self.ime_flag = false;
-                    self.interrupt_flag_reg = 0;
-                    self.handling_interrupt = false;
-                    let interrupt_vector = match enabled_and_requested_interrupts {
-                        0x01 => 0x40,
-                        0x02 => 0x48,
-                        0x04 => 0x50,
-                        0x08 => 0x58,
-                        0x10 => 0x60,
+                    *pc = match self.interrupt_being_handled {
+                        1 => 0x0040,    //VBLANK
+                        2 => 0x0048,    //LCD STATUS
+                        3 => 0x0050,    //TIMEROVERFLOW
+                        4 => 0x0058,    //SERIAL LINK
+                        5 => 0x0060,    //JOYPAD
                         _ => panic!("Invalid interrupt vector"),
-                    };
-                    return Status::Interrupt(interrupt_vector);
+                    }
                 },
                 _ => panic!("Invalid machine cycle for interrupt handling"),
             }
