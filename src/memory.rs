@@ -1,4 +1,5 @@
 use crate::timer::Timer;
+use crate::interrupt_handler::InterruptHandler;
 
 const ROM_BANK_0_START: u16 = 0x0000;
 const ROM_BANK_0_END: u16 = 0x3FFF;
@@ -29,6 +30,7 @@ const TIMER_DIV_REG: u16 = 0xFF04;
 const TIMER_TIMA_REG: u16 = 0xFF05;
 const TIMER_TMA_REG: u16 = 0xFF06;
 const TIMER_TAC_REG: u16 = 0xFF07;
+const INTERRUPT_FLAG_REG: u16 = 0xFF0F;
 
 pub struct Memory {
     rom_bank_0: [u8; 0x4000],   //16KB -> 0000h – 3FFFh (Non-switchable ROM bank)
@@ -40,6 +42,8 @@ pub struct Memory {
     echo: [u8; 0x1E00],         //     -> E000h – FDFFh (ECHO RAM) Mirror of C000h-DDFFh
     oam: [u8; 0xA0],            //     -> FE00h – FE9Fh (Object Attribute Table) Sprite information table
     unused: [u8; 0x60],         //     -> FEA0h – FEFFh (Unused)
+    io: [u8; 0x80],             //     -> FF00h – FF7Fh (I/O ports)
+    pub interrupt_handler: InterruptHandler, //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
     timer: Timer,               //     -> FF04 - FF07
     hram: [u8; 0x7F],           //     -> FF80h – FFFEh (HRAM)
     ie_reg: [u8; 0x1],          //     -> FFFFh         (Interrupt enable flags)
@@ -56,7 +60,9 @@ impl Memory {
             wram_x: [0; 0x1000],   
             echo: [0; 0x1E00],        
             oam: [0; 0xA0],            
-            unused: [0; 0x60], 
+            unused: [0; 0x60],
+            io: [0; 0x80],
+            interrupt_handler: InterruptHandler::new(), 
             timer: Timer::new(),                 
             hram: [0; 0x7F],           
             ie_reg: [0; 0x1],    
@@ -66,7 +72,7 @@ impl Memory {
     pub fn read_byte(&self, address: u16) -> u8 {
         match address {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize],
-            ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_0_START) as usize],
+            ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize],
             VRAM_START ..= VRAM_END => self.vram[(address - VRAM_START) as usize],
             SRAM_START ..= SRAM_END => self.sram[(address - SRAM_START) as usize],
             WRAM_0_START ..= WRAM_0_END => self.wram_0[(address - WRAM_0_START) as usize],
@@ -84,11 +90,12 @@ impl Memory {
                             _ => panic!("something about the wrong address"),                   
                         }
                     }
-                    _ => todo!("The I/O device at address {} is not implemented yet", address),
+                    INTERRUPT_FLAG_REG => self.interrupt_handler.read_if_reg(),
+                    _ => self.io[(address - IO_START) as usize],
                 } 
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize],
-            INTERRUPT_ENABLE_START => self.ie_reg[(address - INTERRUPT_ENABLE_START) as usize],
+            INTERRUPT_ENABLE_START => self.interrupt_handler.read_ie_reg(),
             _ => panic!("MEMORY ACCESS OUT OF BOUNDS"),
         } 
     }
@@ -114,12 +121,18 @@ impl Memory {
                             _ => panic!("Something about the wrong address"),
                         }
                     }
-                    _ => todo!("The I/O device at address {} is not implemented yet", address),
+                    INTERRUPT_FLAG_REG => self.interrupt_handler.write_if_reg(data_to_write),
+                    _ => self.io[(address - IO_START) as usize] = data_to_write,
                 }
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize] = data_to_write,
-            INTERRUPT_ENABLE_START => self.ie_reg[(address - INTERRUPT_ENABLE_START) as usize] = data_to_write,
+            INTERRUPT_ENABLE_START => self.interrupt_handler.write_ie_reg(data_to_write),
             _ => panic!("MEMORY ACCESS OUT OF BOUNDS"),
         } 
+    }
+
+    pub fn load_rom(&mut self, rom_0: [u8; 0x4000], rom_1: [u8; 0x4000]) {
+        self.rom_bank_0 = rom_0;
+        self.rom_bank_x = rom_1;
     }
 }
