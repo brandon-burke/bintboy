@@ -31,16 +31,16 @@ impl Cpu {
         //Note these initial values depend on the gameboy model.
         //We are assuming DMG
         Cpu { 
-            a: 0x01, 
+            a: 0x11, 
             b: 0x00, 
-            c: 0x13, 
-            d: 0x00, 
-            e: 0xD8, 
-            f: 0xB0, 
-            h: 0x01, 
-            l: 0x4D, 
+            c: 0x00, 
+            d: 0xFF, 
+            e: 0x56, 
+            f: 0x80, 
+            h: 0x00, 
+            l: 0x0D, 
             sp: 0xFFFE, 
-            pc: 0x0000,
+            pc: 0x0100,
             cpu_state: CpuState::Fetch,
             cpu_clk_cycles: 0,
             current_opcode: 0x00,
@@ -598,11 +598,12 @@ impl Cpu {
      * INSTRUCTION LENGTH: 1
      */
     fn inc_r8(flag_reg: &mut u8, reg: &mut u8,  machine_cycle: u8) -> Status {
+        let prev_reg_value = *reg;
         match machine_cycle {
             1 => *reg = (*reg).wrapping_add(1),
             _ => panic!("1 to many cycles on inc_r8"),
         }
-        Cpu::set_flags(flag_reg, Some(*reg == 0), Some(false), Some((*reg & 0xF) + 1 > 0xF), None);
+        Cpu::set_flags(flag_reg, Some(*reg == 0), Some(false), Some((prev_reg_value & 0xF) + 1 > 0xF), None);
         return Status::Completed;
     }
 

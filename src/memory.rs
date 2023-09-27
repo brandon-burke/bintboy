@@ -114,7 +114,7 @@ impl Memory {
                 match address {
                     TIMER_START ..= TIMER_END => {
                         match address {
-                            TIMER_DIV_REG => self.timer.write_2_div(data_to_write),
+                            TIMER_DIV_REG => self.timer.write_2_div(),
                             TIMER_TIMA_REG => self.timer.write_2_tima(data_to_write),
                             TIMER_TMA_REG => self.timer.write_2_tma(data_to_write),
                             TIMER_TAC_REG => self.timer.write_2_tac(data_to_write),
@@ -129,6 +129,14 @@ impl Memory {
             INTERRUPT_ENABLE_START => self.interrupt_handler.write_ie_reg(data_to_write),
             _ => panic!("MEMORY ACCESS OUT OF BOUNDS"),
         } 
+    }
+
+    pub fn timer_cycle(&mut self) {
+        self.timer.cycle();
+    }
+
+    pub fn interrupt_cycle(&mut self) {
+        self.interrupt_handler.cycle();
     }
 
     pub fn load_rom(&mut self, rom_0: [u8; 0x4000], rom_1: [u8; 0x4000]) {

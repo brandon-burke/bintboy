@@ -6,12 +6,12 @@ pub mod opcodes;
 pub mod binary_utils;
 pub mod interrupt_handler;
 
-use std::env;
+//use std::env;
 use std::fs::File;
 use std::io::Read;
 fn main() {
     //let args = env::args().collect::<Vec<String>>();
-    let args = "test_roms/individual/03-op-sp-hl.gb";
+    let args = "test_roms/individual/10-bit-ops.gb";
     let (rom_file_0, rom_file_1) = create_rom_file(args);
     let mut cpu = cpu::Cpu::new();
     let mut memory = memory::Memory::new();
@@ -19,7 +19,9 @@ fn main() {
     memory.load_rom(rom_file_0, rom_file_1);
 
     loop {
+        memory.timer_cycle();
         cpu.cycle(&mut memory);
+        memory.interrupt_cycle();
     }
 }
 
