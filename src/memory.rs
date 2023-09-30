@@ -81,15 +81,10 @@ impl Memory {
             UNUSED_START ..= UNUSED_END => panic!("I don't think we should be accessing unused memory"),
             IO_START ..= IO_END => {
                 match address {
-                    TIMER_START ..= TIMER_END => {
-                        match address {
-                            TIMER_DIV_REG => self.timer.read_div(),
-                            TIMER_TIMA_REG => self.timer.read_tima(),
-                            TIMER_TMA_REG => self.timer.read_tma(),
-                            TIMER_TAC_REG => self.timer.read_tac(),   
-                            _ => panic!("something about the wrong address"),                   
-                        }
-                    }
+                    TIMER_DIV_REG => self.timer.read_div(),
+                    TIMER_TIMA_REG => self.timer.read_tima(),
+                    TIMER_TMA_REG => self.timer.read_tma(),
+                    TIMER_TAC_REG => self.timer.read_tac(),   
                     INTERRUPT_FLAG_REG => self.interrupt_handler.read_if_reg(),
                     _ => self.io[(address - IO_START) as usize],
                 } 
@@ -103,7 +98,7 @@ impl Memory {
     pub fn write_byte(&mut self, address: u16, data_to_write: u8) {
         match address {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize] = data_to_write,
-            ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_0_START) as usize] = data_to_write,
+            ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize] = data_to_write,
             VRAM_START ..= VRAM_END => self.vram[(address - VRAM_START) as usize] = data_to_write,
             SRAM_START ..= SRAM_END => self.sram[(address - SRAM_START) as usize] = data_to_write,
             WRAM_0_START ..= WRAM_0_END => self.wram_0[(address - WRAM_0_START) as usize] = data_to_write,
@@ -112,16 +107,11 @@ impl Memory {
             UNUSED_START ..= UNUSED_END => panic!("I don't think we should be accessing unused memory"),
             IO_START ..= IO_END => {
                 match address {
-                    TIMER_START ..= TIMER_END => {
-                        match address {
-                            TIMER_DIV_REG => self.timer.write_2_div(),
-                            TIMER_TIMA_REG => self.timer.write_2_tima(data_to_write),
-                            TIMER_TMA_REG => self.timer.write_2_tma(data_to_write),
-                            TIMER_TAC_REG => self.timer.write_2_tac(data_to_write),
-                            _ => panic!("Something about the wrong address"),
-                        }
-                    }
-                    INTERRUPT_FLAG_REG => self.interrupt_handler.write_if_reg(data_to_write),
+                    TIMER_DIV_REG => self.timer.write_2_div(),
+                    TIMER_TIMA_REG => self.timer.write_2_tima(data_to_write),
+                    TIMER_TMA_REG => self.timer.write_2_tma(data_to_write),
+                    TIMER_TAC_REG => self.timer.write_2_tac(data_to_write),
+                    INTERRUPT_FLAG_REG => self.interrupt_handler.write_if_reg(data_to_write),             
                     _ => self.io[(address - IO_START) as usize] = data_to_write,
                 }
             }
@@ -135,8 +125,23 @@ impl Memory {
         self.timer.cycle();
     }
 
-    pub fn interrupt_cycle(&mut self) {
-        self.interrupt_handler.cycle();
+    /**
+     * Again this is wildly ugly but I had to pull out the memory read and writes because they aren't avaliable
+     * to the interrupt handler, but its also apart of the memory object so I can't pass it in. I'm going to have
+     * to refactor this later
+     */
+    pub fn interrupt_cycle(&mut self, pc: &mut u16, sp: &mut u16) {
+        match self.interrupt_handler.cycle(pc) {
+            3 => {
+                *sp -= 1;
+                self.write_byte(*sp, (*pc >> 8) as u8);
+            },
+            4 => {
+                *sp = (*sp).wrapping_sub(1);
+                self.write_byte(*sp, *pc as u8);
+            },
+            _ => (), 
+        }
     }
 
     pub fn load_rom(&mut self, rom_0: [u8; 0x4000], rom_1: [u8; 0x4000]) {

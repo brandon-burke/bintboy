@@ -1,5 +1,6 @@
 use core::panic;
 
+use crate::interrupt_handler;
 use crate::memory::Memory;
 use crate::cpu_state::{CpuState, Status};
 use crate::opcodes::{OPCODE_MACHINE_CYCLES, PREFIX_OPCODE_MACHINE_CYCLES};
@@ -8,6 +9,7 @@ use crate::binary_utils::{self, split_16bit_num, build_16bit_num};
 const MACHINE_CYCLE: u8 = 4;
 const PREFIX_OPCODE: u8 = 0xCB;
 
+#[derive(Debug)]
 pub struct Cpu {
     pub a: u8,              //Accumulator Register
     pub b: u8,              //General Purpose Register
@@ -19,11 +21,9 @@ pub struct Cpu {
     pub l: u8,              //General Purpose Register
     pub sp: u16,            //Stack Pointer Register
     pub pc: u16,            //Program Counter Register
-    cpu_state: CpuState,    //Let's us know the current state of the CPU
+    pub cpu_state: CpuState,    //Let's us know the current state of the CPU
     cpu_clk_cycles: u8,     //Keeps track of how many cpu clk cycles have gone by
     current_opcode: u8,     //Keeps track of the current worked on opcode
-    ime_flag_request: bool,         //Interrupt Master Enable
-    ime_wait_cycles: u8,
 }
 
 impl Cpu {
@@ -44,8 +44,6 @@ impl Cpu {
             cpu_state: CpuState::Fetch,
             cpu_clk_cycles: 0,
             current_opcode: 0x00,
-            ime_flag_request: false,
-            ime_wait_cycles: 0,
         }
     }
 
@@ -62,6 +60,12 @@ impl Cpu {
         match self.cpu_state.clone() {
             CpuState::Fetch => {
                 self.current_opcode = self.fetch(memory);
+
+                if self.current_opcode == 0x76 {
+                    println!("HALT");
+                } else if self.pc == 0xC338 {
+                    println!("");
+                }
                 
                 if self.current_opcode == PREFIX_OPCODE {
                     self.cpu_state = CpuState::FetchPrefix;
@@ -71,13 +75,7 @@ impl Cpu {
                     if OPCODE_MACHINE_CYCLES[self.current_opcode as usize] == 1 {
                         match self.exexute(memory, 1, &mut 0) {
                             Status::Completed => {
-                                self.cpu_state = CpuState::InterruptHandle { machine_cycle: 0 };
-                                if self.current_opcode == 0xFB {    //EI instruction
-                                    self.ime_wait_cycles = 1;
-                                }
-                                if self.ime_wait_cycles > 0 {
-                                    self.ime_wait_cycles -= 1;
-                                }
+                                self.cpu_state = CpuState::Fetch;
                             }
                             Status::Running => (),
                             Status::Error => panic!("Error Executing opcode"),
@@ -92,10 +90,7 @@ impl Cpu {
                 if PREFIX_OPCODE_MACHINE_CYCLES[self.current_opcode as usize] == 2 { //2 b/c you always have to fetch the prefix
                     match self.exexute_prefix(memory, 1) {
                         Status::Completed => {
-                            self.cpu_state = CpuState::InterruptHandle { machine_cycle: 0 };
-                            if self.ime_wait_cycles > 0 {
-                                self.ime_wait_cycles -= 1;
-                            }
+                            self.cpu_state = CpuState::Fetch;
                         },
                         Status::Running => (),
                         Status::Error => panic!("Error Executing opcode"),
@@ -111,10 +106,7 @@ impl Cpu {
 
                 match execute_status {
                     Status::Completed => {
-                        self.cpu_state = CpuState::InterruptHandle { machine_cycle: 0 };
-                        if self.ime_wait_cycles > 0 {
-                            self.ime_wait_cycles -= 1;
-                        }
+                        self.cpu_state = CpuState::Fetch;
                     },
                     Status::Running => (),
                     Status::Error => panic!("Error Executing opcode"),
@@ -129,73 +121,7 @@ impl Cpu {
                     _ => (),
                 }
             },
-            CpuState::InterruptHandle { mut machine_cycle } => {
-                if self.ime_wait_cycles == 0 && self.ime_flag_request {
-                    self.ime_flag_request = false;
-                    memory.interrupt_handler.enable_ime_flag();
-                }
-
-                machine_cycle += 1;
-                if memory.interrupt_handler.request_is_present() {
-                    match Cpu::isr_routine(&mut self.sp, &mut self.pc, memory, machine_cycle) {
-                        Status::Completed => self.cpu_state = CpuState::Fetch,
-                        Status::Running => (),
-                        Status::Error => panic!("Error during ISR"),
-                    }
-                } else {
-                    self.cpu_state = CpuState::Fetch;
-                }
-
-                match &mut self.cpu_state {
-                    CpuState::InterruptHandle { machine_cycle } => {
-                        *machine_cycle += 1;
-                    },
-                    _ => (),
-                }
-            },
         }
-
-        if memory.read_byte(0xff02) == 0x81 {
-            let byte = memory.read_byte(0xff01);
-            println!("{}", byte);
-            memory.write_byte(0xff02, 0);
-        }
-    }
-
-    fn isr_routine(sp: &mut u16, pc: &mut u16, memory: &mut Memory, machine_cycle: u8) -> Status {
-        match machine_cycle {
-            1 => {
-                memory.interrupt_handler.disable_ime_flag();
-                for bit_pos in 0..=4 {
-                    if binary_utils::get_bit(memory.interrupt_handler.if_reg, bit_pos) != 0 {
-                        memory.interrupt_handler.if_reg = binary_utils::reset_bit(memory.interrupt_handler.if_reg, bit_pos); 
-                        memory.interrupt_handler.interrupt_being_handled = bit_pos;
-                    }
-                }   
-            },
-            2 => (), //Do nothing for the first two machine cycles but we'll just setup some flags
-            3 => {
-                *sp -= 1;
-                memory.write_byte(*sp, (*pc >> 8) as u8);
-            },
-            4 => {
-                *sp -= 1;
-                memory.write_byte(*sp, *pc as u8);
-            },
-            5 => {
-                *pc = match memory.interrupt_handler.interrupt_being_handled {
-                    1 => 0x0040,    //VBLANK
-                    2 => 0x0048,    //LCD STATUS
-                    3 => 0x0050,    //TIMEROVERFLOW
-                    4 => 0x0058,    //SERIAL LINK
-                    5 => 0x0060,    //JOYPAD
-                    _ => panic!("Invalid interrupt vector"),
-                };
-                return Status::Completed;
-            },
-            _ => panic!("Invalid machine cycle for interrupt handling"),
-        }
-        return Status::Running;
     }
 
 
@@ -229,7 +155,7 @@ impl Cpu {
             0x0D => Cpu::dec_r8(&mut self.f, &mut self.c, machine_cycle),                               //DEC_C
             0x0E => Cpu::ld_r8_u8(memory, &mut self.c, &mut self.pc, machine_cycle),                    //LD_C_U8
             0x0F => Cpu::rrca(&mut self.f, &mut self.a, machine_cycle),                                 //RRCA         
-            0x10 => Cpu::stop(),                                                                        //STOP
+            0x10 => Cpu::stop(&self),                                                                        //STOP
             0x11 => Cpu::ld_r16_u16(memory, &mut self.d, &mut self.e, &mut self.pc, machine_cycle),     //LD_DE_U16
             0x12 => Cpu::ld_r16_a(memory, self.a, self.d, self.e, machine_cycle),                       //LD_(DE)_A
             0x13 => Cpu::inc_r16(&mut self.d, &mut self.e, machine_cycle),                              //INC_DE
@@ -430,7 +356,7 @@ impl Cpu {
             0xD6 => Cpu::sub_a_u8(&mut self.f, memory, &mut self.a, &mut self.pc, machine_cycle),   //SUB_A_U8
             0xD7 => Cpu::rst_vec(memory, &mut self.sp, &mut self.pc, 0x10, machine_cycle),    //RST_10
             0xD8 => Cpu::ret_cc(memory, &mut self.sp, &mut self.pc, Cpu::get_carry_flag(self.f) != 0, machine_cycle, temp_reg),     //RET_C
-            0xD9 => Cpu::reti(&mut self.ime_flag_request, memory, &mut self.sp, &mut self.pc, machine_cycle, temp_reg), //RETI
+            0xD9 => Cpu::reti(memory, &mut self.sp, &mut self.pc, machine_cycle, temp_reg), //RETI
             0xDA => Cpu::jp_cc_u16(memory, &mut self.pc, Cpu::get_carry_flag(self.f) != 0, machine_cycle, temp_reg),             //JP_C_U16
             0xDB => panic!("0xDB is an unused opcode"),
             0xDC => Cpu::call_cc_u16(memory, &mut self.pc, &mut self.sp, Cpu::get_carry_flag(self.f) != 0, machine_cycle, temp_reg),    //CALL_C_U16
@@ -454,9 +380,13 @@ impl Cpu {
             0xEE => Cpu::xor_a_u8(&mut self.f, memory, &mut self.a, &mut self.pc, machine_cycle),   //XOR_A_U8
             0xEF => Cpu::rst_vec(memory, &mut self.sp, &mut self.pc, 0x28, machine_cycle),  //RST_28
             0xF0 => Cpu::ldh_a_u8(memory, &mut self.pc, &mut self.a, machine_cycle, temp_reg),         //LDH_A_U8
-            0xF1 => Cpu::pop(memory, &mut self.a, &mut self.f, &mut self.sp, machine_cycle),    //POP_AF
+            0xF1 => {  
+                let result = Cpu::pop(memory, &mut self.a, &mut self.f, &mut self.sp, machine_cycle);
+                self.f &= 0xF0;
+                result
+            },    //POP_AF
             0xF2 => Cpu::ldh_a_c(memory, &mut self.a, self.c, machine_cycle),       //LDH_A_(0xFF00+C)
-            0xF3 => Cpu::di(&mut self.ime_flag_request, machine_cycle),                             //DI
+            0xF3 => Cpu::di(memory, machine_cycle),                             //DI
             0xF4 => panic!("0xF4 is an unused opcode"),
             0xF5 => Cpu::push_r16(memory, self.a, self.f, &mut self.sp, machine_cycle), //PUSH_AF
             0xF6 => Cpu::or_a_u8(&mut self.f, memory, &mut self.a, &mut self.pc, machine_cycle),    //OR_A_U8
@@ -464,7 +394,7 @@ impl Cpu {
             0xF8 => Cpu::ld_hl_sp_i8(&mut self.f, memory, &mut self.sp, &mut self.pc, &mut self.h, &mut self.l, machine_cycle), //LD_HL_SP_I8
             0xF9 => Cpu::ld_sp_hl(self.h, self.l, &mut self.sp, machine_cycle),            //LD_SP_HL
             0xFA => Cpu::ld_a_u16(memory, &mut self.pc, &mut self.a, machine_cycle, temp_reg),      //LD_A_U16
-            0xFB => Cpu::ei(&mut self.ime_flag_request, machine_cycle),                             //EI
+            0xFB => Cpu::ei(memory, machine_cycle),                             //EI
             0xFC => panic!("0xFC is an unused opcode"),
             0xFD => panic!("0xFD is an unused opcode"),
             0xFE => Cpu::cp_a_u8(&mut self.f, memory, self.a, &mut self.pc, machine_cycle),   //CP_A_U8
@@ -582,9 +512,10 @@ impl Cpu {
     fn inc_r16(upper_reg: &mut u8, lower_reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
-                let r16 = binary_utils::build_16bit_num(*upper_reg, *lower_reg) + 1;
-                *upper_reg = (r16 >> 8) as u8;
-                *lower_reg = r16 as u8;
+                let r16 = binary_utils::build_16bit_num(*upper_reg, *lower_reg).wrapping_add(1);
+                let (upper_byte, lower_byte) = binary_utils::split_16bit_num(r16);
+                *upper_reg = upper_byte;
+                *lower_reg = lower_byte;
             }
             _ => panic!("1 to many cycles on inc_r16"),
         }
@@ -758,7 +689,8 @@ impl Cpu {
      * THIS IS VERY SPECIAL NEED TO KNOW MORE ABOUT IT. Helps the gameboy
      * get into a very low power state, but also turns off a lot of peripherals
      */
-    fn stop() -> Status {
+    fn stop(&self) -> Status {
+        println!("{:?}", self);
         //Need to reset the Timer divider register
         //timer begins ticking again once stop mode ends
         todo!("NEED TO IMPLEMENT THE STOP INSTRUCTION");
@@ -814,8 +746,9 @@ impl Cpu {
     fn rra(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
-                Cpu::set_flags(flag_reg, Some(false), Some(false), Some(false), Some(binary_utils::get_bit(*reg_a, 0) != 0));
+                let rotated_bit = binary_utils::get_bit(*reg_a, 0);
                 *reg_a = (*reg_a >> 1) | (Cpu::get_carry_flag(*flag_reg) << 7);
+                Cpu::set_flags(flag_reg, Some(false), Some(false), Some(false), Some(rotated_bit != 0));
             }
             _ => panic!("1 to many machine cycles in rla")
         }
@@ -881,11 +814,11 @@ impl Cpu {
                 let mut carry_flag = false;
                 if Cpu::get_negative_flag(*flag_reg) == 0 {
                     if Cpu::get_carry_flag(*flag_reg) != 0 || *reg_a > 0x99 {
-                        *reg_a += 0x60;
+                        *reg_a = (*reg_a).wrapping_add(0x60);
                         carry_flag = true;
                     }
                     if Cpu::get_half_carry_flag(*flag_reg) != 0 || *reg_a & 0x0F > 0x09 {
-                        *reg_a += 0x6; 
+                        *reg_a = (*reg_a).wrapping_add(0x6); 
                     }
                 }
                 Cpu::set_flags(flag_reg, Some(*reg_a == 0), None, Some(false), Some(carry_flag));
@@ -1478,7 +1411,7 @@ impl Cpu {
     fn cp_a_r8(flag_reg: &mut u8, reg: u8, reg_a: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
-                let result = reg_a - reg;
+                let result = reg_a.wrapping_sub(reg);
                 Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(reg > reg_a & 0xF), Some(reg > reg_a));
             },
             _ => panic!("1 to many machine cycles in cp_a_r8"),
@@ -1547,7 +1480,7 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in pop"),
         }
-        return Status::Completed;
+        return Status::Running;
     }
 
     /**
@@ -1814,7 +1747,7 @@ impl Cpu {
                 let value = memory.read_byte(*pc);
                 *pc += 1;
         
-                let result = *reg_a - value;
+                let result = (*reg_a).wrapping_sub(value);
                 *reg_a = result;
                 Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(value > *reg_a & 0xF), Some(value > *reg_a));
             },
@@ -1830,7 +1763,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 1
      */
-    fn reti(ime_flag: &mut bool, memory: &Memory, sp: &mut u16, pc: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> Status {
+    fn reti(memory: &mut Memory, sp: &mut u16, pc: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 *temp_reg = memory.read_byte(*sp) as u16;
@@ -1842,7 +1775,8 @@ impl Cpu {
             },
             3 => {
                 *pc = *temp_reg;
-                *ime_flag = true;
+                memory.interrupt_handler.enable_ime_flag();
+                memory.interrupt_handler.handling_interrupt = interrupt_handler::Interrupt::Idle;
                 return Status::Completed;
             }
             _ => panic!("1 to many machine cycles in reti"),
@@ -2059,10 +1993,10 @@ impl Cpu {
      * MACHINE CYCLES: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn di(ime_flag: &mut bool, machine_cycle: u8) -> Status {
+    fn di(memory: &mut Memory, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
-                *ime_flag = false;
+                memory.interrupt_handler.disable_ime_flag();
             },
             _ => panic!("1 to many machine cycles in di"),
         }
@@ -2174,10 +2108,10 @@ impl Cpu {
      * MACHINE CYCLE: 1
      * INSTRUCTION LENGTH: 1
      */
-    fn ei(ime_flag: &mut bool, machine_cycle: u8) -> Status {
+    fn ei(memory: &mut Memory, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
-                *ime_flag = true;
+                memory.interrupt_handler.enable_ime_flag();
             },
             _ => panic!("1 to many machine cycles in ei"),
         }
@@ -2196,7 +2130,7 @@ impl Cpu {
                 let value = memory.read_byte(*pc);
                 *pc += 1;
         
-                let result = reg_a - value;
+                let result = reg_a.wrapping_sub(value);
                 Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(value > reg_a & 0xF), Some(value > reg_a));
             },
             _ => panic!("1 to many machine cycles in cp_a_u8"),

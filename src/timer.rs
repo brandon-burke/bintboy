@@ -21,10 +21,10 @@ impl Timer {
      */
     pub fn new() -> Timer {
         Timer {
-            div_reg: 0,
+            div_reg: 0x1E00,
             tima_reg: 0,
             tma_reg: 0,
-            tac_reg: 0,
+            tac_reg: 0xF8,
             prev_div_bit_value: 0,
             tima_overflow: false,
             div_write: false,
@@ -78,7 +78,7 @@ impl Timer {
             self.div_reg = 0;
             self.div_write = false;
         } else {
-            self.div_reg += 1;
+            self.div_reg = self.div_reg.wrapping_add(1);
         }
     }
 
@@ -137,7 +137,7 @@ impl Timer {
 
     pub fn write_2_tac(&mut self, value: u8) {
         let old_tac_enable_bit = self.timer_is_enabled();
-        self.tac_reg = value;
+        self.tac_reg = (self.tac_reg & 0xF8) | (value & 0x7);
         let new_tac_enable_bit = self.timer_is_enabled();
 
         if old_tac_enable_bit == true && new_tac_enable_bit == false {
