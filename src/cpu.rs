@@ -59,12 +59,13 @@ impl Cpu {
         //Depending on what state you are in you have to do the work that corresponds to it
         match self.cpu_state.clone() {
             CpuState::Fetch => {
+                if self.pc == 0xC2A6 {
+                    println!("");
+                }
                 self.current_opcode = self.fetch(memory);
 
                 if self.current_opcode == 0x76 {
                     println!("HALT");
-                } else if self.pc == 0xC338 {
-                    println!("");
                 }
                 
                 if self.current_opcode == PREFIX_OPCODE {
@@ -155,7 +156,7 @@ impl Cpu {
             0x0D => Cpu::dec_r8(&mut self.f, &mut self.c, machine_cycle),                               //DEC_C
             0x0E => Cpu::ld_r8_u8(memory, &mut self.c, &mut self.pc, machine_cycle),                    //LD_C_U8
             0x0F => Cpu::rrca(&mut self.f, &mut self.a, machine_cycle),                                 //RRCA         
-            0x10 => Cpu::stop(&self),                                                                        //STOP
+            0x10 => Cpu::stop(&mut self.pc, machine_cycle),                                                                        //STOP
             0x11 => Cpu::ld_r16_u16(memory, &mut self.d, &mut self.e, &mut self.pc, machine_cycle),     //LD_DE_U16
             0x12 => Cpu::ld_r16_a(memory, self.a, self.d, self.e, machine_cycle),                       //LD_(DE)_A
             0x13 => Cpu::inc_r16(&mut self.d, &mut self.e, machine_cycle),                              //INC_DE
@@ -246,7 +247,7 @@ impl Cpu {
             0x68 => Cpu::ld_r8_r8(self.b, &mut self.l, machine_cycle),                          //LD_L_B
             0x69 => Cpu::ld_r8_r8(self.c, &mut self.l, machine_cycle),                          //LD_L_C
             0x6A => Cpu::ld_r8_r8(self.d, &mut self.l, machine_cycle),                          //LD_L_D
-            0x6B => Cpu::ld_r8_r8(self.e, &mut self.e, machine_cycle),                          //LD_L_E
+            0x6B => Cpu::ld_r8_r8(self.e, &mut self.l, machine_cycle),                          //LD_L_E
             0x6C => Cpu::ld_r8_r8(self.h, &mut self.l, machine_cycle),                          //LD_L_H
             0x6D => Cpu::ld_r8_r8(self.l, &mut self.l, machine_cycle),                          //LD_L_L
             0x6E => Cpu::ld_r8_hl(memory, self.h, self.l, &mut self.l, machine_cycle),          //LD_L_(HL)
@@ -388,7 +389,7 @@ impl Cpu {
             0xF2 => Cpu::ldh_a_c(memory, &mut self.a, self.c, machine_cycle),       //LDH_A_(0xFF00+C)
             0xF3 => Cpu::di(memory, machine_cycle),                             //DI
             0xF4 => panic!("0xF4 is an unused opcode"),
-            0xF5 => Cpu::push_r16(memory, self.a, self.f, &mut self.sp, machine_cycle), //PUSH_AF
+            0xF5 => Cpu::push_r16(memory, self.a, self.f & 0xF0, &mut self.sp, machine_cycle), //PUSH_AF
             0xF6 => Cpu::or_a_u8(&mut self.f, memory, &mut self.a, &mut self.pc, machine_cycle),    //OR_A_U8
             0xF7 => Cpu::rst_vec(memory, &mut self.sp, &mut self.pc, 0x30, machine_cycle),  //RST_30
             0xF8 => Cpu::ld_hl_sp_i8(&mut self.f, memory, &mut self.sp, &mut self.pc, &mut self.h, &mut self.l, machine_cycle), //LD_HL_SP_I8
@@ -546,7 +547,7 @@ impl Cpu {
      */
     pub fn dec_r8(flag_reg: &mut u8, reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
-            1 => *reg -= 1,           
+            1 => *reg = (*reg).wrapping_sub(1),           
             _ => panic!("1 to many cycles on dec_r8"),
         }
         Cpu::set_flags(flag_reg, Some(*reg == 0), Some(true), Some(*reg & 0xF == 0xF), None);
@@ -561,10 +562,12 @@ impl Cpu {
      */
     fn ld_r8_u8(memory: &Memory, reg: &mut u8, pc: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
-            1 => *reg = memory.read_byte(*pc),
+            1 => {
+                *reg = memory.read_byte(*pc);
+                *pc += 1;
+            },
             _ => panic!("1 to many cycles on ld_r8_u8"),
         }
-        *pc += 1;
         return Status::Completed;
     }
 
@@ -656,7 +659,7 @@ impl Cpu {
     fn dec_r16(upper_reg: &mut u8, lower_reg: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
-                let r16 = binary_utils::build_16bit_num(*upper_reg, *lower_reg) - 1;
+                let r16 = binary_utils::build_16bit_num(*upper_reg, *lower_reg).wrapping_sub(1);
                 let (upper_byte, lower_byte) = binary_utils::split_16bit_num(r16);
                 *upper_reg = upper_byte;
                 *lower_reg = lower_byte;
@@ -689,11 +692,17 @@ impl Cpu {
      * THIS IS VERY SPECIAL NEED TO KNOW MORE ABOUT IT. Helps the gameboy
      * get into a very low power state, but also turns off a lot of peripherals
      */
-    fn stop(&self) -> Status {
-        println!("{:?}", self);
+    fn stop(pc: &mut u16, machine_cycle: u8) -> Status {
+        match machine_cycle {
+            1 => {
+                *pc += 1;
+            }
+            _ => panic!("1 to many cycles on stop"),
+        }
+
         //Need to reset the Timer divider register
         //timer begins ticking again once stop mode ends
-        todo!("NEED TO IMPLEMENT THE STOP INSTRUCTION");
+        return Status::Completed;
     }
 
     /**
@@ -705,8 +714,9 @@ impl Cpu {
     fn rla(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
+                let result = (*reg_a << 1) | Cpu::get_carry_flag(*flag_reg);
                 Cpu::set_flags(flag_reg, Some(false), Some(false), Some(false), Some(binary_utils::get_bit(*reg_a, 7) != 0));
-                *reg_a = (*reg_a << 1) | Cpu::get_carry_flag(*flag_reg);
+                *reg_a = result;
             }
             _ => panic!("1 to many machine cycles in rla")
         }
@@ -793,7 +803,7 @@ impl Cpu {
                 let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
                 memory.write_byte(reg_hl, *reg_a);
 
-                let (upper_byte, lower_byte) = split_16bit_num(reg_hl + 1);
+                let (upper_byte, lower_byte) = split_16bit_num(reg_hl.wrapping_add(1));
                 *reg_h = upper_byte;
                 *reg_l = lower_byte;
             },
@@ -811,7 +821,7 @@ impl Cpu {
     fn daa(flag_reg: &mut u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
-                let mut carry_flag = false;
+                let mut carry_flag = Cpu::get_carry_flag(*flag_reg) != 0;
                 if Cpu::get_negative_flag(*flag_reg) == 0 {
                     if Cpu::get_carry_flag(*flag_reg) != 0 || *reg_a > 0x99 {
                         *reg_a = (*reg_a).wrapping_add(0x60);
@@ -819,6 +829,14 @@ impl Cpu {
                     }
                     if Cpu::get_half_carry_flag(*flag_reg) != 0 || *reg_a & 0x0F > 0x09 {
                         *reg_a = (*reg_a).wrapping_add(0x6); 
+                    }
+                } else {
+                    if Cpu::get_carry_flag(*flag_reg) != 0 {
+                        *reg_a = (*reg_a).wrapping_sub(0x60);
+                    }
+
+                    if Cpu::get_half_carry_flag(*flag_reg) != 0 {
+                        *reg_a = (*reg_a).wrapping_sub(0x6);
                     }
                 }
                 Cpu::set_flags(flag_reg, Some(*reg_a == 0), None, Some(false), Some(carry_flag));
@@ -917,7 +935,7 @@ impl Cpu {
      */
     fn inc_sp(sp: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
-            1 => *sp += 1,
+            1 => *sp = (*sp).wrapping_add(1),
             _ => panic!("1 to many machine cycles in inc_sp"), 
         }
         return Status::Completed;
@@ -935,9 +953,10 @@ impl Cpu {
             2 => {
                 let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
                 let mut hl_data = memory.read_byte(reg_hl);
-                hl_data += 1;
+                let test = hl_data;
+                hl_data = hl_data.wrapping_add(1);
                 memory.write_byte(reg_hl, hl_data);
-                Cpu::set_flags(flag_reg, Some(hl_data == 0), Some(false), Some((hl_data & 0xF) + 1 > 0xF), None);
+                Cpu::set_flags(flag_reg, Some(hl_data == 0), Some(false), Some((test & 0xF) + 1 > 0xF), None);
 
                 return Status::Completed;
             },
@@ -957,7 +976,7 @@ impl Cpu {
             1 => (), //read byte at HL. too lazy to implement temp reg at this step just doing it on next step
             2 => {
                 let reg_hl = binary_utils::build_16bit_num(*reg_h, *reg_l);
-                let hl_data = memory.read_byte(reg_hl) - 1;
+                let hl_data = memory.read_byte(reg_hl).wrapping_sub(1);
                 memory.write_byte(reg_hl, hl_data);
 
                 Cpu::set_flags(flag_reg, Some(hl_data == 0), Some(true), Some(hl_data & 0xF == 0xF), None);
@@ -1058,7 +1077,7 @@ impl Cpu {
     pub fn dec_sp(sp: &mut u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
-                *sp -= 1;
+                *sp = (*sp).wrapping_sub(1);
             }
             _ => panic!("1 to many machine cycles in dec_sp"),
         }
@@ -1218,12 +1237,13 @@ impl Cpu {
     * MACHINE CYCLES: 1
     * INSTRUCTION LENGTH: 1
     */
-    fn sub_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> Status {
+    fn sub_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8, machine_cycle: u8) -> Status { //FIX THIS
         match machine_cycle {
             1 => {
-                let result = *reg_a - reg;
+                let result = (*reg_a).wrapping_sub(reg);
+                let half_carry = (*reg_a & 0xF).wrapping_sub(reg & 0xF) > 0xF;
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(half_carry), Some(reg > *reg_a));
                 *reg_a = result;
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(reg > *reg_a & 0xF), Some(reg > *reg_a));
             },
             _ => panic!("1 to many machine cycles in sub_a_r8"),
         }
@@ -1240,10 +1260,11 @@ impl Cpu {
         match machine_cycle {
             1 => {
                 let hl_data = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l));
-                let result = *reg_a - hl_data;
-                *reg_a = result;
+                let result = (*reg_a).wrapping_sub(hl_data);
+                let half_carry = (((*reg_a & 0xf).wrapping_sub(hl_data & 0xf)) & 0x10) == 0x10;
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(half_carry), Some(hl_data > *reg_a));
 
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(hl_data > *reg_a & 0xF), Some(hl_data > *reg_a));
+                *reg_a = result;
             },
             _ => panic!("1 to many machine cycles in sub_a_hl"),
         }
@@ -1259,9 +1280,16 @@ impl Cpu {
     fn sbc_a_r8(flag_reg: &mut u8, reg: u8, reg_a: &mut u8 ,machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
-                let result = *reg_a - reg - Cpu::get_carry_flag(*flag_reg);
+                let r1 = (*reg_a).wrapping_sub(Cpu::get_carry_flag(*flag_reg));
+                let result = r1.wrapping_sub(reg);
+
+                let half_carry_1 = (((*reg_a & 0xf).wrapping_sub(Cpu::get_carry_flag(*flag_reg) & 0xf)) & 0x10) == 0x10;
+                let half_carry_2 = (((r1 & 0xf).wrapping_sub(reg & 0xf)) & 0x10) == 0x10;
+                let carry_1 = Cpu::get_carry_flag(*flag_reg) > *reg_a;
+                let carry_2 = reg > r1;
+
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(half_carry_1 || half_carry_2), Some(carry_1 || carry_2));
                 *reg_a = result;
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some((reg - Cpu::get_carry_flag(*flag_reg)) > *reg_a & 0xF), Some(reg + Cpu::get_carry_flag(*flag_reg) > *reg_a));
             },
             _ => panic!("1 to many machine cycles in sbc_a_r8"),
         }
@@ -1278,11 +1306,17 @@ impl Cpu {
         match machine_cycle {
             1 => {
                 let hl_data = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l));
-                let result = *reg_a - hl_data - Cpu::get_carry_flag(*flag_reg);
-        
-                *reg_a = result;
+                let pre_result = (*reg_a).wrapping_sub(Cpu::get_carry_flag(*flag_reg));
+                let result = (pre_result).wrapping_sub(hl_data);
 
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some((hl_data - Cpu::get_carry_flag(*flag_reg)) > *reg_a & 0xF), Some(hl_data > *reg_a));
+                let half_carry_1 = (((*reg_a & 0xf).wrapping_sub(pre_result & 0xf)) & 0x10) == 0x10;
+                let half_carry_2 = (((pre_result & 0xf).wrapping_sub(hl_data & 0xf)) & 0x10) == 0x10;
+                let carry_1 = Cpu::get_carry_flag(*flag_reg) > *reg_a;
+                let carry_2 = hl_data > pre_result;
+        
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(half_carry_1 || half_carry_2), Some(carry_1 || carry_2));
+                
+                *reg_a = result;
             },
             _ => panic!("1 to many machine cycles in sbc_a_r8"),
         }
@@ -1355,9 +1389,8 @@ impl Cpu {
         match machine_cycle {
             1 => {
                 let hl_data = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l));
-                let result = hl_data ^ *reg_a;
-                *reg_a = result;
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(false));
+                *reg_a = hl_data ^ *reg_a;
+                Cpu::set_flags(flag_reg, Some(*reg_a == 0), Some(false), Some(false), Some(false));
             }
             _ => panic!("1 to many machine cycles in xor_a_hl"),
         }
@@ -1412,7 +1445,8 @@ impl Cpu {
         match machine_cycle {
             1 => {
                 let result = reg_a.wrapping_sub(reg);
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(reg > reg_a & 0xF), Some(reg > reg_a));
+                let half_carry = (reg_a & 0xF).wrapping_sub(reg & 0xF) > 0xF;
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(half_carry), Some(reg > reg_a));
             },
             _ => panic!("1 to many machine cycles in cp_a_r8"),
         }
@@ -1429,8 +1463,9 @@ impl Cpu {
         match machine_cycle {
             1 => {
                 let hl_data = memory.read_byte(binary_utils::build_16bit_num(reg_h, reg_l));
-                let result = reg_a - hl_data;
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(hl_data > reg_a & 0xF), Some(hl_data > reg_a));
+                let result = reg_a.wrapping_sub(hl_data);
+                let half_carry = (((reg_a & 0xf).wrapping_sub(hl_data & 0xf)) & 0x10) == 0x10;
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(half_carry), Some(hl_data > reg_a));
             },
             _ => panic!("1 to many machine cycles in cp_a_hl"),
         }
@@ -1632,12 +1667,12 @@ impl Cpu {
     fn rst_vec(memory: &mut Memory, sp: &mut u16, pc: &mut u16, rst_address: u16, machine_cycle: u8) -> Status {
         match machine_cycle {
             1 => {
-                *sp -= 1;
+                *sp = (*sp).wrapping_sub(1);
                 let (upper_byte, _) = binary_utils::split_16bit_num(*pc);
                 memory.write_byte(*sp, upper_byte);
             },
             2 => {
-                *sp -= 1;
+                *sp = (*sp).wrapping_sub(1);
                 let (_, lower_byte) = binary_utils::split_16bit_num(*pc);
                 memory.write_byte(*sp, lower_byte);
             },
@@ -1746,10 +1781,11 @@ impl Cpu {
             1 => {
                 let value = memory.read_byte(*pc);
                 *pc += 1;
-        
+
+                let half_carry = (((*reg_a & 0xf).wrapping_sub(value & 0xf)) & 0x10) == 0x10;
                 let result = (*reg_a).wrapping_sub(value);
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(half_carry), Some(value > *reg_a));
                 *reg_a = result;
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(value > *reg_a & 0xF), Some(value > *reg_a));
             },
             _ => panic!("1 to many machine cycles in sub_a_u8"),
         }
@@ -1781,7 +1817,8 @@ impl Cpu {
             }
             _ => panic!("1 to many machine cycles in reti"),
         }
-        todo!("Need to come back to this instruction as we need to delay the EI flag by 1 machine cycle. They say this is like EI then RET so I might just call those 2 functions");
+        return Status::Running;
+        //todo!("Need to come back to this instruction as we need to delay the EI flag by 1 machine cycle. They say this is like EI then RET so I might just call those 2 functions");
     }
 
     fn sbc_a_u8(flag_reg: &mut u8, memory: &Memory, reg_a: &mut u8, pc: &mut u16, machine_cycle: u8) -> Status {
@@ -1789,10 +1826,17 @@ impl Cpu {
             1 => {
                 let value = memory.read_byte(*pc);
                 *pc += 1;
-        
-                let result = *reg_a - value - Cpu::get_carry_flag(*flag_reg);
+                
+                let r1 = (*reg_a).wrapping_sub(Cpu::get_carry_flag(*flag_reg));
+                let result = r1.wrapping_sub(value);
+
+                let half_carry_1 = (((*reg_a & 0xf).wrapping_sub(Cpu::get_carry_flag(*flag_reg) & 0xf)) & 0x10) == 0x10;
+                let half_carry_2 = (((r1 & 0xf).wrapping_sub(value & 0xf)) & 0x10) == 0x10;
+                let carry_1 = Cpu::get_carry_flag(*flag_reg) > *reg_a;
+                let carry_2 = value > r1;
+
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(half_carry_1 || half_carry_2), Some(carry_1 || carry_2));
                 *reg_a = result;
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some((value - Cpu::get_carry_flag(*flag_reg)) > *reg_a & 0xF), Some(value + Cpu::get_carry_flag(*flag_reg) > *reg_a));
             },
             _ => panic!("1 to many machine cycles in sbc_a_u8"),
         }
@@ -1872,25 +1916,31 @@ impl Cpu {
                 *pc += 1;
                 
                 let result: u16 = (*sp).wrapping_add_signed(value_i8 as i16);
-                let half_carry_overflow = if value_i8 > 0 && (*sp & 0xF).wrapping_add_signed(value_i8 as i16) > 0xF {
-                    true
-                } else {
-                    false
-                };
 
-                let carry_overflow = if value_i8 > 0 && (*sp & 0xFF).wrapping_add_signed(value_i8 as i16) > 0xFF {
-                    true
-                } else {
-                    false
-                };
+                let sp_u8 = *sp as u8;
+                let half_carry = (sp_u8 & 0xF).wrapping_add((value_i8 as u8) & 0xF) > 0xF;
+                let (_, carry) = sp_u8.overflowing_add(value_i8 as u8);
+
+
+                // if value_i8 < 0 {
+                //     let x = value_i8.abs() as u8;
+                //     half_carry = (((*sp & 0xf).wrapping_sub((x as u16) & 0xf)) & 0x10) == 0x10;
+                //     carry_overflow = (*sp & 0xFF).wrapping_sub((x as u16) & 0xFF) > 0xFF;
+                // } else {
+                //     let x = value_i8 as u8;
+                //     half_carry = (*sp & 0xF).wrapping_add((x as u16) & 0xF) > 0xF;
+                //     carry_overflow = (*sp & 0xFF).wrapping_add((x as u16) & 0xFF) > 0xFF;
+                // }
         
                 *sp = result;
-                Cpu::set_flags(flag_reg, Some(false), Some(false), Some(half_carry_overflow), Some(carry_overflow));
+                Cpu::set_flags(flag_reg, Some(false), Some(false), Some(half_carry), Some(carry));
+                //Cpu::set_flags(flag_reg, Some(false), Some(false), Some(half_carry), Some(value > *reg_a));
+                return Status::Completed;
             }
             
             _ => panic!("1 to many machine cycles in add_sp_i8"),
         }
-        return Status::Completed;
+        return Status::Running;
     }
 
     /**
@@ -1947,9 +1997,8 @@ impl Cpu {
                 let value = memory.read_byte(*pc);
                 *pc += 1;
         
-                let result = value ^ *reg_a;
-                *reg_a = result;
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(false), Some(false));
+                *reg_a = value ^ *reg_a;
+                Cpu::set_flags(flag_reg, Some(*reg_a == 0), Some(false), Some(false), Some(false));
             },
             _ => panic!("1 to many machine cycles in xor_a_u8"),
         }
@@ -2042,18 +2091,11 @@ impl Cpu {
                 *reg_h = upper_byte;
                 *reg_l = lower_byte;
 
-                let half_carry_overflow = if value > 0 && (*sp & 0xF).wrapping_add_signed(value as i16) > 0xF {
-                    true
-                } else {
-                    false
-                };
-                let carry_overflow = if value > 0 && (*sp & 0xFF).wrapping_add_signed(value as i16) > 0xFF {
-                    true
-                } else {
-                    false
-                };
+                let sp_u8 = *sp as u8;
+                let half_carry = (sp_u8 & 0xF).wrapping_add((value as u8) & 0xF) > 0xF;
+                let (_, carry) = sp_u8.overflowing_add(value as u8);
         
-                Cpu::set_flags(flag_reg, Some(false), Some(false), Some(half_carry_overflow), Some(carry_overflow));
+                Cpu::set_flags(flag_reg, Some(false), Some(false), Some(half_carry), Some(carry));
                 return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in ld_hl_sp_i8"),
@@ -2131,7 +2173,8 @@ impl Cpu {
                 *pc += 1;
         
                 let result = reg_a.wrapping_sub(value);
-                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(value > reg_a & 0xF), Some(value > reg_a));
+                let half_carry = (((reg_a & 0xf).wrapping_sub(value & 0xf)) & 0x10) == 0x10;
+                Cpu::set_flags(flag_reg, Some(result == 0), Some(true), Some(half_carry), Some(value > reg_a));
             },
             _ => panic!("1 to many machine cycles in cp_a_u8"),
         }
@@ -2198,7 +2241,7 @@ impl Cpu {
             0x33 => Cpu::swap_r8(&mut self.f, &mut self.e, machine_cycle),                  //SWAP E
             0x34 => Cpu::swap_r8(&mut self.f, &mut self.h, machine_cycle),                  //SWAP H
             0x35 => Cpu::swap_r8(&mut self.f, &mut self.l, machine_cycle),                  //SWAP L
-            0x36 => Cpu::swap_hl(&mut self.f, memory, self.a, self.a, machine_cycle),       //SWAP (HL)
+            0x36 => Cpu::swap_hl(&mut self.f, memory, self.h, self.l, machine_cycle),       //SWAP (HL)
             0x37 => Cpu::swap_r8(&mut self.f, &mut self.a, machine_cycle),                  //SWAP A
             0x38 => Cpu::srl_r8(&mut self.f, &mut self.b, machine_cycle),               //SRL B
             0x39 => Cpu::srl_r8(&mut self.f, &mut self.c, machine_cycle),               //SRL C
@@ -2761,10 +2804,11 @@ impl Cpu {
                 let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
                 let result = binary_utils::get_bit(hl_data, bit_to_test);
                 Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(true), None);
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in bit_u3_hl"),
         }
-        return Status::Completed;
+        return Status::Running;
     }
 
     /**
@@ -2797,10 +2841,11 @@ impl Cpu {
                 let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
                 let result = hl_data & !(0x1 << bit_to_reset);
                 memory.write_byte(build_16bit_num(reg_h, reg_l), result);
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in res_u3_hl"),
         }
-        return Status::Completed;
+        return Status::Running;
     }
 
     /**
@@ -2833,10 +2878,11 @@ impl Cpu {
                 let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
                 let result = hl_data | (0x1 << bit_to_set);
                 memory.write_byte(build_16bit_num(reg_h, reg_l), result);
+                return Status::Completed;
             },
             _ => panic!("1 to many machine cycles in set_u3_hl"),
         }
-        return Status::Completed;
+        return Status::Running;
     }
 
 

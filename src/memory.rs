@@ -77,8 +77,12 @@ impl Memory {
             SRAM_START ..= SRAM_END => self.sram[(address - SRAM_START) as usize],
             WRAM_0_START ..= WRAM_0_END => self.wram_0[(address - WRAM_0_START) as usize],
             WRAM_X_START ..= WRAM_X_END => self.wram_x[(address - WRAM_X_START) as usize],
-            ECHO_START ..= ECHO_END => panic!("I don't think we should be accessing echo memory"),
-            UNUSED_START ..= UNUSED_END => panic!("I don't think we should be accessing unused memory"),
+            ECHO_START ..= ECHO_END => {
+                panic!("I don't think we should be accessing echo memory");
+            }
+            UNUSED_START ..= UNUSED_END => {
+                panic!("I don't think we should be accessing unused memory");
+            }
             IO_START ..= IO_END => {
                 match address {
                     TIMER_DIV_REG => self.timer.read_div(),
@@ -103,8 +107,12 @@ impl Memory {
             SRAM_START ..= SRAM_END => self.sram[(address - SRAM_START) as usize] = data_to_write,
             WRAM_0_START ..= WRAM_0_END => self.wram_0[(address - WRAM_0_START) as usize] = data_to_write,
             WRAM_X_START ..= WRAM_X_END => self.wram_x[(address - WRAM_X_START) as usize] = data_to_write,
-            ECHO_START ..= ECHO_END => panic!("I don't think we should be accessing echo memory"),
-            UNUSED_START ..= UNUSED_END => panic!("I don't think we should be accessing unused memory"),
+            ECHO_START ..= ECHO_END => {
+                panic!("I don't think we should be writing echo memory");
+            }
+            UNUSED_START ..= UNUSED_END => {
+                panic!("I don't think we should be writing unused memory");
+            }
             IO_START ..= IO_END => {
                 match address {
                     TIMER_DIV_REG => self.timer.write_2_div(),
@@ -133,7 +141,7 @@ impl Memory {
     pub fn interrupt_cycle(&mut self, pc: &mut u16, sp: &mut u16) {
         match self.interrupt_handler.cycle(pc) {
             3 => {
-                *sp -= 1;
+                *sp = (*sp).wrapping_sub(1);
                 self.write_byte(*sp, (*pc >> 8) as u8);
             },
             4 => {

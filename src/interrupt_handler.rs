@@ -132,8 +132,6 @@ impl InterruptHandler {
         self.if_reg = (self.if_reg & 0xE0) | (data_to_write & 0x1F); 
     }
 
-    //11110001
-
     pub fn read_if_reg(&self) -> u8 {
         self.if_reg
     }

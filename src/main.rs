@@ -11,7 +11,7 @@ use std::fs::File;
 use std::io::Read;
 fn main() {
     //let args = env::args().collect::<Vec<String>>();
-    let args = "test_roms/individual/01-special.gb";
+    let args = "test_roms/individual/02-interrupts.gb";
     //let (rom_file_0, rom_file_1) = create_rom_file(&args[1]);
     let (rom_file_0, rom_file_1) = create_rom_file(args);
     let mut cpu = cpu::Cpu::new();
