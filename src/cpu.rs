@@ -1,6 +1,6 @@
 use core::panic;
 
-use crate::interrupt_handler;
+use crate::interrupt_handler::{self, Interrupt};
 use crate::memory::Memory;
 use crate::cpu_state::{CpuState, Status};
 use crate::opcodes::{OPCODE_MACHINE_CYCLES, PREFIX_OPCODE_MACHINE_CYCLES};
@@ -16,7 +16,7 @@ pub struct Cpu {
     pub c: u8,              //General Purpose Register
     pub d: u8,              //General Purpose Register
     pub e: u8,              //General Purpose Register
-    pub f: u8,              //Flags Register
+    pub f: u8,              //Flags Register        This is actually dependent on the header checksum with normal DMG gameboy
     pub h: u8,              //General Purpose Register
     pub l: u8,              //General Purpose Register
     pub sp: u16,            //Stack Pointer Register
@@ -31,14 +31,14 @@ impl Cpu {
         //Note these initial values depend on the gameboy model.
         //We are assuming DMG
         Cpu { 
-            a: 0x11, 
+            a: 0x01, 
             b: 0x00, 
-            c: 0x00, 
-            d: 0xFF, 
-            e: 0x56, 
-            f: 0x80, 
-            h: 0x00, 
-            l: 0x0D, 
+            c: 0x13, 
+            d: 0x00, 
+            e: 0xD8, 
+            f: 0xB0, 
+            h: 0x01, 
+            l: 0x4D, 
             sp: 0xFFFE, 
             pc: 0x0100,
             cpu_state: CpuState::Fetch,
@@ -59,7 +59,7 @@ impl Cpu {
         //Depending on what state you are in you have to do the work that corresponds to it
         match self.cpu_state.clone() {
             CpuState::Fetch => {
-                if self.pc == 0xC2A6 {
+                if self.pc == 0xC36F {
                     println!("");
                 }
                 self.current_opcode = self.fetch(memory);
@@ -76,7 +76,11 @@ impl Cpu {
                     if OPCODE_MACHINE_CYCLES[self.current_opcode as usize] == 1 {
                         match self.exexute(memory, 1, &mut 0) {
                             Status::Completed => {
-                                self.cpu_state = CpuState::Fetch;
+                                if self.current_opcode == 0x76 {
+                                    self.cpu_state = CpuState::Halt;
+                                } else {
+                                    self.cpu_state = CpuState::Fetch;
+                                }
                             }
                             Status::Running => (),
                             Status::Error => panic!("Error Executing opcode"),
@@ -122,9 +126,14 @@ impl Cpu {
                     _ => (),
                 }
             },
+            CpuState::Halt => {
+                let enabled_and_requested_interrupts = (memory.interrupt_handler.ie_reg & memory.interrupt_handler.if_reg) & 0x1F;
+                if enabled_and_requested_interrupts != 0 {
+                    self.cpu_state = CpuState::Fetch;
+                }
+            },
         }
     }
-
 
     /**
      * Retrieving the next opcode from memory
@@ -258,7 +267,7 @@ impl Cpu {
             0x73 => Cpu::ld_hl_r8(memory, self.e, self.h, self.l, machine_cycle),               //LD_(HL)_E
             0x74 => Cpu::ld_hl_r8(memory, self.h, self.h, self.l, machine_cycle),               //LD_(HL)_H
             0x75 => Cpu::ld_hl_r8(memory, self.l, self.h, self.l, machine_cycle),               //LD_(HL)_L
-            0x76 => Cpu::halt(),                                                                //HALT
+            0x76 => Cpu::halt(self),                                                                //HALT
             0x77 => Cpu::ld_hl_r8(memory, self.a, self.h, self.l, machine_cycle),               //LD_(HL)_A
             0x78 => Cpu::ld_r8_r8(self.b, &mut self.a, machine_cycle),                          //LD_A_B
             0x79 => Cpu::ld_r8_r8(self.c, &mut self.a, machine_cycle),                          //LD_A_C
@@ -700,6 +709,7 @@ impl Cpu {
             _ => panic!("1 to many cycles on stop"),
         }
 
+        println!("YOU STILL REALLY NEED TO FULLY IMPLEMENT THIS");
         //Need to reset the Timer divider register
         //timer begins ticking again once stop mode ends
         return Status::Completed;
@@ -1144,8 +1154,8 @@ impl Cpu {
      * MACHINE CYCLES: -
      * INSTRUCTION LENGTH: 1
      */
-    fn halt() -> Status {
-        todo!();
+    fn halt(&mut self) -> Status {
+        return Status::Completed;
     }
 
     /**
@@ -1478,7 +1488,7 @@ impl Cpu {
      * MACHINE CYCLES: 5 IF TAKEN/ 2 IF NOT TAKEN
      * INSTRUCTION LENGTH: 1
      */
-    fn ret_cc(memory: &Memory, sp: &mut u16, pc: &mut u16, condition: bool, machine_cycle: u8, temp_reg: &mut u16) -> Status {
+    fn ret_cc(memory: &mut Memory, sp: &mut u16, pc: &mut u16, condition: bool, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 if !condition {
@@ -1489,6 +1499,7 @@ impl Cpu {
             3 => { *temp_reg |= (memory.read_byte(*sp) as u16) << 8; *sp += 1; }, //Read upper SP byte
             4 =>  {
                 *pc = *temp_reg;
+                memory.interrupt_handler.handling_interrupt = Interrupt::Idle;
                 return Status::Completed;
             }
             _ => panic!("1 to many machine cycles in ret_cc"),
@@ -1691,7 +1702,7 @@ impl Cpu {
      * MACHINE CYCLES: 4
      * INSTRUCTION LENGTH: 1
      */
-    fn ret(memory: &Memory, sp: &mut u16, pc: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> Status {
+    fn ret(memory: &mut Memory, sp: &mut u16, pc: &mut u16, machine_cycle: u8, temp_reg: &mut u16) -> Status {
         match machine_cycle {
             1 => {
                 *temp_reg = memory.read_byte(*sp) as u16;
@@ -1703,6 +1714,7 @@ impl Cpu {
             }
             3 =>{
                 *pc = *temp_reg;
+                memory.interrupt_handler.handling_interrupt = Interrupt::Idle;
                 return Status::Completed;
             }
             _ => panic!("1 to many machine cycles in ret"),

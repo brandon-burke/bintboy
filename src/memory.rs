@@ -131,6 +131,10 @@ impl Memory {
 
     pub fn timer_cycle(&mut self) {
         self.timer.cycle();
+        if self.timer.interrupted_requested {
+            self.interrupt_handler.if_reg |= 0x04;
+            self.timer.interrupted_requested = false;
+        }
     }
 
     /**

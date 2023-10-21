@@ -5,15 +5,16 @@ pub mod timer;
 pub mod opcodes;
 pub mod binary_utils;
 pub mod interrupt_handler;
+pub mod ppu;
 
 use std::env;
 use std::fs::File;
 use std::io::Read;
 fn main() {
-    //let args = env::args().collect::<Vec<String>>();
-    let args = "test_roms/individual/02-interrupts.gb";
-    //let (rom_file_0, rom_file_1) = create_rom_file(&args[1]);
-    let (rom_file_0, rom_file_1) = create_rom_file(args);
+    let args = env::args().collect::<Vec<String>>();
+    let (rom_file_0, rom_file_1) = create_rom_file(&args[1]);
+    // let args = "test_roms/individual/02-interrupts.gb";
+    // let (rom_file_0, rom_file_1) = create_rom_file(args);
     let mut cpu = cpu::Cpu::new();
     let mut memory = memory::Memory::new();
 
@@ -29,10 +30,7 @@ fn main() {
         match cpu.cpu_state {
             cpu_state::CpuState::Fetch => memory.interrupt_cycle(&mut cpu.pc, &mut cpu.sp),
             _ => (),
-        }
-        
-
-        
+        }        
 
         if memory.read_byte(0xff02) == 0x81 {
             let byte = memory.read_byte(0xff01);

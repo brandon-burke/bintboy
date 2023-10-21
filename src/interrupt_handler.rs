@@ -52,7 +52,7 @@ impl InterruptHandler {
         }
 
         let enabled_and_requested_interrupts = (self.ie_reg & self.if_reg) & 0x1F;
-        if (self.ime_flag && enabled_and_requested_interrupts != 0) || self.handling_interrupt != Interrupt::Idle {
+        if (self.ime_flag && enabled_and_requested_interrupts != 0) || self.handling_isr {
             self.machine_cycle += 1;
             self.isr_routine(pc);
         }

@@ -10,7 +10,7 @@ pub struct Timer {
     div_write: bool,            //Lets us know if a write to the div register occurred
     tac_en_falling_edge: bool,  //Lets us know if the timer went from being enabled to disabled
     ticks_since_overflow: u8,   //
-    interrupted_requested: bool,
+    pub interrupted_requested: bool,
     tima_a_cycle_write_occurred: bool,
     tima_write_value: u8,
 }
@@ -21,7 +21,7 @@ impl Timer {
      */
     pub fn new() -> Timer {
         Timer {
-            div_reg: 0x1E00,
+            div_reg: 0xABCC,
             tima_reg: 0,
             tma_reg: 0,
             tac_reg: 0xF8,
@@ -145,8 +145,6 @@ impl Timer {
         }
     }
 
-    //Reading Timer Registers
-
     /**
      * Returning whats in the div register
      */
@@ -165,17 +163,6 @@ impl Timer {
     pub fn read_tac(&self) -> u8 {
         return self.tac_reg;
     }
-    
-
-
-
-
-
-
-
-
-
-
 }
 
 //Div register
