@@ -6,6 +6,7 @@ pub mod opcodes;
 pub mod binary_utils;
 pub mod interrupt_handler;
 pub mod ppu;
+pub mod constants;
 
 use std::env;
 use std::fs::File;

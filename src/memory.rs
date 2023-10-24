@@ -1,36 +1,6 @@
 use crate::timer::Timer;
 use crate::interrupt_handler::InterruptHandler;
-
-const ROM_BANK_0_START: u16 = 0x0000;
-const ROM_BANK_0_END: u16 = 0x3FFF;
-const ROM_BANK_X_START: u16 = 0x4000;
-const ROM_BANK_X_END: u16 = 0x7FFF;
-const VRAM_START: u16 = 0x8000;
-const VRAM_END: u16 = 0x9FFF;
-const SRAM_START: u16 = 0xA000;
-const SRAM_END: u16 = 0xBFFF;
-const WRAM_0_START: u16 = 0xC000;
-const WRAM_0_END: u16 = 0xCFFF;
-const WRAM_X_START: u16 = 0xD000;
-const WRAM_X_END: u16 = 0xDFFF;
-const ECHO_START: u16 = 0xE000;
-const ECHO_END: u16 = 0xFDFF;
-const OAM_START: u16 = 0xFE00;
-const OAM_END: u16 = 0xFE9F;
-const UNUSED_START: u16 = 0xFEA0;
-const UNUSED_END: u16 = 0xFEFF;
-const IO_START: u16 = 0xFF00;
-const IO_END: u16 = 0xFF7F;
-const HRAM_START: u16 = 0xFF80;
-const HRAM_END: u16 = 0xFFFE;
-const INTERRUPT_ENABLE_START: u16 = 0xFFFF;
-const TIMER_START: u16 = 0xFF04;
-const TIMER_END: u16 = 0xFF07;
-const TIMER_DIV_REG: u16 = 0xFF04;
-const TIMER_TIMA_REG: u16 = 0xFF05;
-const TIMER_TMA_REG: u16 = 0xFF06;
-const TIMER_TAC_REG: u16 = 0xFF07;
-const INTERRUPT_FLAG_REG: u16 = 0xFF0F;
+use crate::constants::*;
 
 pub struct Memory {
     rom_bank_0: [u8; 0x4000],   //16KB -> 0000h – 3FFFh (Non-switchable ROM bank)

@@ -1,16 +1,5 @@
-pub struct Ppu {    
-    tile_data_0: [u8; 0x800],   //$8000–$87FF
-    tile_data_1: [u8; 0x800],   //$8800–$8FFF
-    tile_data_2: [u8; 0x800],   //$9000–$97FF
-    tile_map_0: [u8; 0x400],    //$9800-$9BFF
-    tile_map_1: [u8; 0x400],    //$9C00-$9FFF
-}
-
-impl Ppu {
-
-}
-
-
+use ndarray::Array2;
+use crate::constants::*;
 /**
  * Overview Notes
  *  -You cannot mess with pixels individually. 
@@ -45,3 +34,196 @@ impl Ppu {
  *  -
  * 
  */
+pub struct Ppu {    
+    tile_data_0: [u8; 0x800],   //$8000–$87FF
+    tile_data_1: [u8; 0x800],   //$8800–$8FFF
+    tile_data_2: [u8; 0x800],   //$9000–$97FF
+    tile_map_0: [u8; 0x400],    //$9800-$9BFF
+    tile_map_1: [u8; 0x400],    //$9C00-$9FFF
+    oam: [u8; 0xA0],            //$FE00–$FE9F (Object Attribute Table) Sprite information table
+    bgp_reg: u8,                //Background palette data
+    obp0_reg: u8,               //Object palette 0 data
+    obp1_reg: u8,               //Object palette 1 data               
+    scy_reg: u8,                //Scrolling y register
+    scx_reg: u8,                //Scrolling x register
+    lcdc_reg: u8,               //LCD Control register
+    ly_reg: u8,                 //LCD y coordinate register (current horizontal line which might be able to be drawn, being drawn, or just been drawn)
+    lyc_reg: u8,                //LY compare register. Can use this register to trigger an interrupt when LY reg and this reg are the same value 
+    stat_reg: u8,               //LCD status register
+    wx_reg: u8,                 //Window x position
+    wy_reg: u8,                 //Window y position
+    view_port: Array2<u8>,      //160x144 pixel window
+}
+
+impl Ppu {
+
+    pub fn read_tile_data_0(&self, address: u16) -> u8 {
+        return self.tile_data_0[(address - TILE_DATA_0_START) as usize];
+    }
+
+    pub fn write_tile_data_0(&mut self, address: u16, value: u8) {
+        self.tile_data_0[(address - TILE_DATA_0_START) as usize] = value;
+    }
+
+    pub fn read_tile_data_1(&self, address: u16) -> u8 {
+        return self.tile_data_1[(address - TILE_DATA_1_START) as usize];
+    }
+
+    pub fn write_tile_data_1(&mut self, address: u16, value: u8) {
+        self.tile_data_1[(address - TILE_DATA_1_START) as usize] = value;
+    }
+
+    pub fn read_tile_data_2(&self, address: u16) -> u8 {
+        return self.tile_data_2[(address - TILE_DATA_2_START) as usize];
+    }
+
+    pub fn write_tile_data_2(&mut self, address: u16, value: u8) {
+        self.tile_data_2[(address - TILE_DATA_2_START) as usize] = value;
+    }
+
+    pub fn read_tile_map_0(&self, address: u16) -> u8 {
+        return self.tile_map_0[(address - TILE_MAP_0_START) as usize];
+    }
+
+    pub fn write_tile_map_0(&mut self, address: u16, value: u8) {
+        self.tile_map_0[(address - TILE_MAP_0_START) as usize] = value;
+    }
+
+    pub fn read_tile_map_1(&self, address: u16) -> u8 {
+        return self.tile_map_1[(address - TILE_MAP_1_START) as usize];
+    }
+
+    pub fn write_tile_map_1(&mut self, address: u16, value: u8) {
+        self.tile_map_1[(address - TILE_MAP_1_START) as usize] = value;
+    }
+
+    pub fn read_oam(&self, address: u16) -> u8 {
+        return self.oam[(address - OAM_START) as usize];
+    }
+
+    pub fn write_oam(&mut self, address: u16, value: u8) {
+        self.oam[(address - OAM_START) as usize] = value;
+    }
+
+    pub fn read_bgp_reg(&self) -> u8 {
+        return self.bgp_reg;
+    }
+
+    pub fn write_bgp_reg(&mut self, value: u8) {
+        self.bgp_reg = value;
+    }
+
+    pub fn read_obp0_reg(&self) -> u8 {
+        return self.obp0_reg;
+    }
+
+    pub fn write_obp0_reg(&mut self, value: u8) {
+        self.obp0_reg = value;
+    }
+
+    pub fn read_obp1_reg(&self) -> u8 {
+        return self.obp1_reg;
+    }
+
+    pub fn write_obp1_reg(&mut self, value: u8) {
+        self.obp1_reg = value;
+    }
+
+    pub fn read_scy_reg(&self) -> u8 {
+        return self.scy_reg;
+    } 
+
+    pub fn write_scy_reg(&mut self, value: u8) {
+        self.scy_reg = value;
+    }
+
+    pub fn read_scx_reg(&self) -> u8 {
+        return self.scx_reg;
+    } 
+
+    pub fn write_scx_reg(&mut self, value: u8) {
+        self.scx_reg = value;
+    }
+
+    pub fn read_lcdc_reg(&self) -> u8 {
+        return self.lcdc_reg;
+    }
+
+    pub fn write_lcdc_reg(&mut self, value: u8) {
+        self.lcdc_reg = value;
+    }
+
+    pub fn read_ly_reg(&self) -> u8 {
+        return self.ly_reg;
+    }
+
+    pub fn write_ly_reg(&mut self, value: u8) {
+        self.ly_reg = value;
+    }
+
+    pub fn read_lyc_reg(&self) -> u8 {
+        return self.lyc_reg;
+    }
+
+    pub fn write_lyc_reg(&mut self, value: u8) {
+        self.lyc_reg = value;
+    }
+
+    pub fn read_stat_reg(&self) -> u8 {
+        return self.stat_reg;
+    }
+
+    pub fn write_stat_reg(&mut self, value: u8) {
+        self.stat_reg = value;
+    }
+
+    pub fn read_wx_reg(&self) -> u8 {
+        return self.wx_reg;
+    }
+
+    pub fn write_wx_reg(&mut self, value: u8) {
+        self.wx_reg = value;
+    }
+
+    pub fn read_wy_reg(&self) -> u8 {
+        return self.wy_reg;
+    }
+
+    pub fn write_wy_reg(&mut self, value: u8) {
+        self.wy_reg = value;
+    }
+
+
+
+
+
+    /**
+     * Will shift the entire frame of the view port to the right
+     */
+    fn scroll_frame_right(grid: &mut Array2<u8>) {
+        for row in grid.rows_mut() {
+            let mut prev_ele = *row.last().unwrap();  
+            for ele in row {
+                let temp = *ele;
+                *ele = prev_ele;
+                prev_ele = temp;
+            }
+        }
+    }
+
+    /**
+     * Will shift the entire frame of the view port to the left
+     */
+    fn scroll_left(grid: &mut Array2<u8>) {
+        for mut row in grid.rows_mut() {
+            let mut prev_ele = *row.first().unwrap();
+            for ele in row.iter_mut().rev() {
+                let temp = *ele;
+                *ele = prev_ele;
+                prev_ele = temp; 
+            }
+        }
+    }
+}
+
+
