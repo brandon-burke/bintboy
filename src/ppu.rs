@@ -34,6 +34,14 @@ use crate::constants::*;
  *  -
  * 
  */
+
+enum PpuState {
+    OamScan,            //Mode2
+    DrawingPixels,      //Mode3
+    HorizontalBlank,    //Mode0
+    VerticalBlank,      //Mode1 
+}
+
 pub struct Ppu {    
     tile_data_0: [u8; 0x800],   //$8000–$87FF
     tile_data_1: [u8; 0x800],   //$8800–$8FFF
@@ -52,10 +60,71 @@ pub struct Ppu {
     stat_reg: u8,               //LCD status register
     wx_reg: u8,                 //Window x position
     wy_reg: u8,                 //Window y position
-    view_port: Array2<u8>,      //160x144 pixel window
+    ppu_state: PpuState,
+    ppu_clk_ticks: u16
 }
 
 impl Ppu {
+    pub fn new() -> Self {
+        Self {
+            tile_data_0: [0; 0x800],
+            tile_data_1: [0; 0x800],
+            tile_data_2: [0; 0x800],
+            tile_map_0: [0; 0x400],
+            tile_map_1: [0; 0x400],
+            oam: [0; 0xA0],
+            bgp_reg: 0,
+            obp0_reg: 0,
+            obp1_reg: 0,
+            scy_reg: 0,
+            scx_reg: 0,
+            lcdc_reg: 0,
+            ly_reg: 0,
+            lyc_reg: 0,
+            stat_reg: 0,
+            wx_reg: 0,
+            wy_reg: 0,
+            ppu_state: PpuState::OamScan,
+            ppu_clk_ticks: 0,
+        }
+    }
+
+    pub fn cycle(&mut self) {
+        self.ppu_clk_ticks += 1;
+
+        match self.ppu_state {
+            PpuState::OamScan => {
+                if self.ppu_clk_ticks == 80 {
+                    self.ppu_clk_ticks = 0;
+                    self.ppu_state = PpuState::DrawingPixels;
+                }
+            },
+            PpuState::DrawingPixels => {
+                if self.ppu_clk_ticks == 172 {  //This number is not for certain this can vary
+                    self.ppu_clk_ticks = 0;
+                    self.ppu_state = PpuState::HorizontalBlank;
+                }
+                todo!("Need to implement the variable about of ticks this mode state can take");
+            },
+            PpuState::HorizontalBlank => {
+                if self.ppu_clk_ticks == 87 {
+                    self.ppu_clk_ticks = 0;
+                    self.ppu_state = PpuState::OamScan;
+                    if self.ly_reg >= 144 {
+                        self.ppu_state = PpuState::VerticalBlank;
+                    }
+                }
+                todo!("Need to implement the variable about of ticks this mode state can take");
+            },
+            PpuState::VerticalBlank => {
+                if self.ppu_clk_ticks == 456 && self.ly_reg > 153 {  //Not sure if 153 is good to use
+                    self.ppu_state = PpuState::OamScan;
+                }
+
+                todo!("Need to see if the ly reg value check is correct");
+            },
+        }
+    }
 
     pub fn read_tile_data_0(&self, address: u16) -> u8 {
         return self.tile_data_0[(address - TILE_DATA_0_START) as usize];

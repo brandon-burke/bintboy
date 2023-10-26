@@ -31,7 +31,24 @@ pub const TIMER_TAC_REG: u16 = 0xFF07;
 pub const INTERRUPT_FLAG_REG: u16 = 0xFF0F;
 
 pub const TILE_DATA_0_START: u16 = 0x8000;
+pub const TILE_DATA_0_END: u16 = 0x87FF;
 pub const TILE_DATA_1_START: u16 = 0x8800;
+pub const TILE_DATA_1_END: u16 = 0x8FFF;
 pub const TILE_DATA_2_START: u16 = 0x9000;
+pub const TILE_DATA_2_END: u16 = 0x97FF;
 pub const TILE_MAP_0_START: u16 = 0x9800;
+pub const TILE_MAP_0_END: u16 = 0x9BFF;
 pub const TILE_MAP_1_START: u16 = 0x9C00;
+pub const TILE_MAP_1_END: u16 = 0x9FFF;
+
+pub const LCDC_REG: u16 = 0xFF40;
+pub const STAT_REG: u16 = 0xFF41;
+pub const SCY_REG: u16 = 0xFF42;
+pub const SCX_REG: u16 = 0xFF43;
+pub const LY_REG: u16 = 0xFF44;
+pub const LYC_REG: u16 = 0xFF45;
+pub const BGP_REG: u16 = 0xFF47;
+pub const OBP0_REG: u16 = 0xFF48;
+pub const OBP1_REG: u16 = 0xFF49;
+pub const WY_REG: u16 = 0xFF4A;
+pub const WX_REG: u16 = 0xFF4B;
