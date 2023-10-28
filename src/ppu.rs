@@ -49,6 +49,7 @@ pub struct Ppu {
     tile_map_0: [u8; 0x400],    //$9800-$9BFF
     tile_map_1: [u8; 0x400],    //$9C00-$9FFF
     oam: [u8; 0xA0],            //$FE00–$FE9F (Object Attribute Table) Sprite information table
+    visible_sprites: [u8; 0x28],
     bgp_reg: u8,                //Background palette data
     obp0_reg: u8,               //Object palette 0 data
     obp1_reg: u8,               //Object palette 1 data               
@@ -72,6 +73,7 @@ impl Ppu {
             tile_data_2: [0; 0x800],
             tile_map_0: [0; 0x400],
             tile_map_1: [0; 0x400],
+            visible_sprites: [0; 0x28],
             oam: [0; 0xA0],
             bgp_reg: 0,
             obp0_reg: 0,
@@ -95,6 +97,25 @@ impl Ppu {
         match self.ppu_state {
             PpuState::OamScan => {
                 if self.ppu_clk_ticks == 80 {
+                    //Find all the sprites that are on the current scan line by comparing ly to the objects y position
+                    let mut visible_idx = 0;
+                    for oam_idx in (0..self.oam.len()).step_by(4) {
+                        let sprite_y_pos = self.oam[oam_idx];
+                        let sprite_y_pos_end = sprite_y_pos + 8; 
+                        if self.ly_reg >= sprite_y_pos && self.ly_reg < sprite_y_pos_end {
+                            self.visible_sprites[visible_idx] = self.oam[oam_idx];              //y-pos
+                            self.visible_sprites[visible_idx + 1] = self.oam[oam_idx + 1];      //x-pos
+                            self.visible_sprites[visible_idx + 2] = self.oam[oam_idx + 2];      //tile index
+                            self.visible_sprites[visible_idx + 3] = self.oam[oam_idx + 3];      //object attributes
+                            visible_idx += 4;
+                        }
+                        
+                        //Found all 10 sprites
+                        if visible_idx >= self.visible_sprites.len() {
+                            break;
+                        }
+                    }
+
                     self.ppu_clk_ticks = 0;
                     self.ppu_state = PpuState::DrawingPixels;
                 }
