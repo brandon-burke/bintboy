@@ -1,0 +1,5 @@
+-Take a look at FEA0-FEFF range. This has specific behavior depending on the gameboy model
+-FF4F has VRAM bank select on CGB
+-FF51 - FF55 is VRAM DMA on CGB
+-FF69 - FF6B is BG/OBJ Palettes
+-FF70 WRAM bank selection on CGB

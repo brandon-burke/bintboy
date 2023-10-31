@@ -93,11 +93,11 @@ impl Memory {
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize] = data_to_write,
             VRAM_START ..= VRAM_END => {
                 match address {
-                    TILE_DATA_0_START => self.ppu.write_tile_data_0(address, data_to_write),
-                    TILE_DATA_1_START => self.ppu.write_tile_data_1(address, data_to_write),
-                    TILE_DATA_2_START => self.ppu.write_tile_data_2(address, data_to_write),
-                    TILE_MAP_0_START => self.ppu.write_tile_map_0(address, data_to_write),
-                    TILE_MAP_1_START => self.ppu.write_tile_map_1(address, data_to_write),
+                    TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.write_tile_data_0(address, data_to_write),
+                    TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.write_tile_data_1(address, data_to_write),
+                    TILE_DATA_2_START ..= TILE_DATA_2_END => self.ppu.write_tile_data_2(address, data_to_write),
+                    TILE_MAP_0_START ..= TILE_MAP_0_END => self.ppu.write_tile_map_0(address, data_to_write),
+                    TILE_MAP_1_START ..= TILE_MAP_1_END => self.ppu.write_tile_map_1(address, data_to_write),
                     _ => panic!("MEMORY WRITE ERROR: Should have never gotten here since we took care of all the VRAM addresses"),
                 }
             },

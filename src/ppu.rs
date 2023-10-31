@@ -1,39 +1,6 @@
 use ndarray::Array2;
+use crate::binary_utils;
 use crate::constants::*;
-/**
- * Overview Notes
- *  -You cannot mess with pixels individually. 
- *  -Tiles are used which are 8x8 squares of pixels
- *  -You can't encode a color directly per say.
- *  -A palette is first chosen for that tile. Then it uses 2bits per pixel in the tile to determine the color in that palette
- *  -Has 3 layers from back to front in the order Background, Window, then Objects
- * 
- * Background
- *  -Consist of a tilemap, which is just a grid of tiles
- *  -Each tile though is a reference to the tile not the actual tile (saves space)
- *  -Can also be scrolled with hardware registers
- * 
- * Window
- *  -Fairly limited
- *  -No transparency
- *  -Always a rectangle
- *  -Only position of top left pixel can be controlled
- * 
- * Object
- *  -Made of 1 or 2 stacked tiles (8x8 or 8x16 pixels)
- *  -Can be displayed anywhere on screen
- *  -Can move independently of background
- *  -stored in OAM memory
- * 
- * VRAM Tile data
- *  -In VRAM between locations 0x8000-0x97FF
- *  -Each tile is 16 bytes
- *  -384 tiles can be stored in VRAM in total for DMG (CGB is different)\
- *  -Color are between the values 0-3
- *  -Objects having colors at 0 mean they are transparent
- *  -
- * 
- */
 
 enum PpuState {
     OamScan,            //Mode2
@@ -42,39 +9,92 @@ enum PpuState {
     VerticalBlank,      //Mode1 
 }
 
+#[derive(Clone, Copy)]
+struct Sprite {
+    y_pos: u8,
+    x_pos: u8,
+    tile_index: u8,
+    attribute_flags: u8,
+}
+
+impl Sprite {
+    fn new() -> Self {
+        Self {
+            y_pos: 0,
+            x_pos: 0,
+            tile_index: 0,
+            attribute_flags: 0,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct Tile {
+    pixel_rows: [u8; 16],   //Every 2 bytes is a pixel row
+}
+
+impl Tile {
+    fn new() -> Self {
+        Self { pixel_rows: [0; 16] }
+    }
+}
+
+#[derive(Default, Clone, Copy)]
+struct Pixel {
+    color_id: u8,
+    palette: u8,
+    is_background: bool,
+}
+
+impl Pixel {
+    fn new() -> Self {
+        Self {
+            color_id: 0,
+            palette: 0,
+            is_background: false,
+        }
+    }
+}
+
+
 pub struct Ppu {    
-    tile_data_0: [u8; 0x800],   //$8000–$87FF
-    tile_data_1: [u8; 0x800],   //$8800–$8FFF
-    tile_data_2: [u8; 0x800],   //$9000–$97FF
+    tile_data_0: [Tile; 128],   //$8000–$87FF
+    tile_data_1: [Tile; 128],   //$8800–$8FFF
+    tile_data_2: [Tile; 128],   //$9000–$97FF
     tile_map_0: [u8; 0x400],    //$9800-$9BFF
     tile_map_1: [u8; 0x400],    //$9C00-$9FFF
-    oam: [u8; 0xA0],            //$FE00–$FE9F (Object Attribute Table) Sprite information table
-    visible_sprites: [u8; 0x28],
-    bgp_reg: u8,                //Background palette data
-    obp0_reg: u8,               //Object palette 0 data
-    obp1_reg: u8,               //Object palette 1 data               
-    scy_reg: u8,                //Scrolling y register
-    scx_reg: u8,                //Scrolling x register
-    lcdc_reg: u8,               //LCD Control register
-    ly_reg: u8,                 //LCD y coordinate register (current horizontal line which might be able to be drawn, being drawn, or just been drawn)
-    lyc_reg: u8,                //LY compare register. Can use this register to trigger an interrupt when LY reg and this reg are the same value 
-    stat_reg: u8,               //LCD status register
-    wx_reg: u8,                 //Window x position
-    wy_reg: u8,                 //Window y position
+    oam: [Sprite; 40],          //$FE00–$FE9F (Object Attribute Table) Sprite information table
+    visible_sprites: [Sprite; 10],
+    bgp_reg: u8,                //$FF47 - Background palette data
+    obp0_reg: u8,               //$FF48 - Object palette 0 data
+    obp1_reg: u8,               //$FF49 - Object palette 1 data               
+    scy_reg: u8,                //$FF42 - Scrolling y register
+    scx_reg: u8,                //$FF43 - Scrolling x register
+    lcdc_reg: u8,               //$FF40 - LCD Control register
+    ly_reg: u8,                 //$FF44 - LCD y coordinate register (current horizontal line which might be able to be drawn, being drawn, or just been drawn)
+    lyc_reg: u8,                //$FF45 - LY compare register. Can use this register to trigger an interrupt when LY reg and this reg are the same value 
+    stat_reg: u8,               //$FF41 - LCD status register
+    wx_reg: u8,                 //$FF4B - Window x position
+    wy_reg: u8,                 //$FF4A - Window y position
     ppu_state: PpuState,
-    ppu_clk_ticks: u16
+    ppu_clk_ticks: u16,
+    view_port: Array2<Tile>,
+    drawing_penalty: u8,
+    bg_window_fifo: [Pixel; 16],
+    sprite_fifo: [Pixel; 16],
+    x_scanline_coord: u8,       //This is not a real register but will help us keep track of the x position of the scanline
 }
 
 impl Ppu {
     pub fn new() -> Self {
         Self {
-            tile_data_0: [0; 0x800],
-            tile_data_1: [0; 0x800],
-            tile_data_2: [0; 0x800],
+            tile_data_0: [Tile::new(); 128],
+            tile_data_1: [Tile::new(); 128],
+            tile_data_2: [Tile::new(); 128],
             tile_map_0: [0; 0x400],
             tile_map_1: [0; 0x400],
-            visible_sprites: [0; 0x28],
-            oam: [0; 0xA0],
+            visible_sprites: [Sprite::new(); 10],
+            oam: [Sprite::new(); 40],
             bgp_reg: 0,
             obp0_reg: 0,
             obp1_reg: 0,
@@ -88,6 +108,11 @@ impl Ppu {
             wy_reg: 0,
             ppu_state: PpuState::OamScan,
             ppu_clk_ticks: 0,
+            view_port: Array2::default((160, 144)),
+            drawing_penalty: 0,
+            bg_window_fifo: [Pixel::new(); 16],
+            sprite_fifo: [Pixel::new(); 16],
+            x_scanline_coord: 0,
         }
     }
 
@@ -97,35 +122,53 @@ impl Ppu {
         match self.ppu_state {
             PpuState::OamScan => {
                 if self.ppu_clk_ticks == 80 {
-                    //Find all the sprites that are on the current scan line by comparing ly to the objects y position
-                    let mut visible_idx = 0;
-                    for oam_idx in (0..self.oam.len()).step_by(4) {
-                        let sprite_y_pos = self.oam[oam_idx];
-                        let sprite_y_pos_end = sprite_y_pos + 8; 
-                        if self.ly_reg >= sprite_y_pos && self.ly_reg < sprite_y_pos_end {
-                            self.visible_sprites[visible_idx] = self.oam[oam_idx];              //y-pos
-                            self.visible_sprites[visible_idx + 1] = self.oam[oam_idx + 1];      //x-pos
-                            self.visible_sprites[visible_idx + 2] = self.oam[oam_idx + 2];      //tile index
-                            self.visible_sprites[visible_idx + 3] = self.oam[oam_idx + 3];      //object attributes
-                            visible_idx += 4;
+                    let mut visible_sprite_idx = 0;
+                    for sprite in self.oam {
+                        let sprite_y_pos_end = {
+                            if binary_utils::get_bit(self.lcdc_reg, 2) == 0 {
+                                sprite.y_pos + 8
+                            } else {
+                                sprite.y_pos + 16
+                            }
+                        };
+
+                        if self.ly_reg + 16 >= sprite.y_pos && self.ly_reg + 16 < sprite_y_pos_end && sprite.x_pos != 0 {
+                            self.visible_sprites[visible_sprite_idx] = sprite;
                         }
-                        
-                        //Found all 10 sprites
-                        if visible_idx >= self.visible_sprites.len() {
+
+                        //Break when we found the 10 sprites we need
+                        if visible_sprite_idx >= self.visible_sprites.len() {
                             break;
                         }
                     }
-
                     self.ppu_clk_ticks = 0;
                     self.ppu_state = PpuState::DrawingPixels;
                 }
             },
             PpuState::DrawingPixels => {
+                //Need to determine which tilemap to use
+                if binary_utils::get_bit(self.lcdc_reg, 6) != 0 && self.x_scanline_coord + 7 >= self.wx_reg && self.ly_reg >= self.wy_reg {
+                    //Fetch from $9C00
+                }
+
+                if binary_utils::get_bit(self.lcdc_reg, 6) != 0 && self.x_scanline_coord + 7 < self.wx_reg && self.ly_reg < self.wy_reg {
+                    //Fetch from $9C00
+                }
+
+                //Find the tile that you need to get
+                
+                //x coord
+                
+
+
                 if self.ppu_clk_ticks == 172 {  //This number is not for certain this can vary
+                    self.x_scanline_coord = 0;
                     self.ppu_clk_ticks = 0;
                     self.ppu_state = PpuState::HorizontalBlank;
                 }
-                todo!("Need to implement the variable about of ticks this mode state can take");
+
+                self.x_scanline_coord += 1;
+                todo!("Need to implement the variable about of ticks this mode state can take (the penalty)");
             },
             PpuState::HorizontalBlank => {
                 if self.ppu_clk_ticks == 87 {
