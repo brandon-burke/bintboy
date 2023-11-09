@@ -83,8 +83,7 @@ impl Memory {
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize],
             INTERRUPT_ENABLE_START => self.interrupt_handler.read_ie_reg(),
-            _ => panic!("MEMORY ACCESS OUT OF BOUNDS"),
-        } 
+        }
     }
 
     pub fn write_byte(&mut self, address: u16, data_to_write: u8) {
@@ -134,8 +133,7 @@ impl Memory {
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize] = data_to_write,
             INTERRUPT_ENABLE_START => self.interrupt_handler.write_ie_reg(data_to_write),
-            _ => panic!("MEMORY ACCESS OUT OF BOUNDS"),
-        } 
+        }
     }
 
     pub fn timer_cycle(&mut self) {
