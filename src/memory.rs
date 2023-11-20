@@ -1,5 +1,5 @@
 use crate::timer::Timer;
-use crate::ppu::Ppu;
+use crate::ppu::{ Ppu, PpuState, self };
 use crate::interrupt_handler::InterruptHandler;
 use crate::constants::*;
 
@@ -41,13 +41,17 @@ impl Memory {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize],
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize],
             VRAM_START ..= VRAM_END => {
-                match address {
-                    TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.read_tile_data_0(address),
-                    TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.read_tile_data_1(address),
-                    TILE_DATA_2_START ..= TILE_DATA_2_END => self.ppu.read_tile_data_2(address),
-                    TILE_MAP_0_START ..= TILE_MAP_0_END => self.ppu.read_tile_map_0(address),
-                    TILE_MAP_1_START ..= TILE_MAP_1_END => self.ppu.read_tile_map_1(address),
-                    _ => panic!("MEMORY READ ERROR: Should have never gotten here since we took care of all the VRAM addresses"),
+                if self.ppu.state != PpuState::DrawingPixels  {
+                    match address {
+                        TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.read_tile_data_0(address),
+                        TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.read_tile_data_1(address),
+                        TILE_DATA_2_START ..= TILE_DATA_2_END => self.ppu.read_tile_data_2(address),
+                        TILE_MAP_0_START ..= TILE_MAP_0_END => self.ppu.read_tile_map_0(address),
+                        TILE_MAP_1_START ..= TILE_MAP_1_END => self.ppu.read_tile_map_1(address),
+                        _ => panic!("MEMORY READ ERROR: Should have never gotten here since we took care of all the VRAM addresses"),
+                    }
+                } else {
+                    return 0xFF;
                 }
             },
             SRAM_START ..= SRAM_END => self.sram[(address - SRAM_START) as usize],
@@ -56,7 +60,13 @@ impl Memory {
             ECHO_START ..= ECHO_END => {
                 panic!("I don't think we should be accessing echo memory");
             }
-            OAM_START ..= OAM_END => self.ppu.read_oam(address),
+            OAM_START ..= OAM_END => {
+                if self.ppu.state != PpuState::OamScan && self.ppu.state != PpuState::DrawingPixels {
+                    self.ppu.read_oam(address)
+                } else {
+                    return 0xFF;
+                }
+            },
             UNUSED_START ..= UNUSED_END => {
                 panic!("I don't think we should be accessing unused memory");
             }
@@ -91,13 +101,15 @@ impl Memory {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize] = data_to_write,
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize] = data_to_write,
             VRAM_START ..= VRAM_END => {
-                match address {
-                    TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.write_tile_data_0(address, data_to_write),
-                    TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.write_tile_data_1(address, data_to_write),
-                    TILE_DATA_2_START ..= TILE_DATA_2_END => self.ppu.write_tile_data_2(address, data_to_write),
-                    TILE_MAP_0_START ..= TILE_MAP_0_END => self.ppu.write_tile_map_0(address, data_to_write),
-                    TILE_MAP_1_START ..= TILE_MAP_1_END => self.ppu.write_tile_map_1(address, data_to_write),
-                    _ => panic!("MEMORY WRITE ERROR: Should have never gotten here since we took care of all the VRAM addresses"),
+                if self.ppu.state != PpuState::DrawingPixels  {
+                    match address {
+                        TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.write_tile_data_0(address, data_to_write),
+                        TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.write_tile_data_1(address, data_to_write),
+                        TILE_DATA_2_START ..= TILE_DATA_2_END => self.ppu.write_tile_data_2(address, data_to_write),
+                        TILE_MAP_0_START ..= TILE_MAP_0_END => self.ppu.write_tile_map_0(address, data_to_write),
+                        TILE_MAP_1_START ..= TILE_MAP_1_END => self.ppu.write_tile_map_1(address, data_to_write),
+                        _ => panic!("MEMORY WRITE ERROR: Should have never gotten here since we took care of all the VRAM addresses"),
+                    }
                 }
             },
             SRAM_START ..= SRAM_END => self.sram[(address - SRAM_START) as usize] = data_to_write,
