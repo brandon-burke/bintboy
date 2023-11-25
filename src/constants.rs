@@ -52,3 +52,5 @@ pub const OBP0_REG: u16 = 0xFF48;
 pub const OBP1_REG: u16 = 0xFF49;
 pub const WY_REG: u16 = 0xFF4A;
 pub const WX_REG: u16 = 0xFF4B;
+
+pub const DMA: u16 = 0xFF46;

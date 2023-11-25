@@ -7,6 +7,7 @@ pub mod binary_utils;
 pub mod interrupt_handler;
 pub mod ppu;
 pub mod constants;
+pub mod dma;
 
 use std::env;
 use std::fs::File;

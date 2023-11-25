@@ -1,4 +1,5 @@
 use crate::timer::Timer;
+use crate::dma::Dma;
 use crate::ppu::{ Ppu, PpuState, self };
 use crate::interrupt_handler::InterruptHandler;
 use crate::constants::*;
@@ -15,6 +16,7 @@ pub struct Memory {
     pub interrupt_handler: InterruptHandler, //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
     ppu: Ppu,                   //Pixel Processing Unit. Houses most of the graphics related memory 
     timer: Timer,               //     -> FF04 - FF07
+    dma: Dma,
     hram: [u8; 0x7F],           //     -> FF80h – FFFEh (HRAM)
 }
 
@@ -32,6 +34,7 @@ impl Memory {
             interrupt_handler: InterruptHandler::new(), 
             timer: Timer::new(),              
             ppu: Ppu::new(),
+            dma: Dma::new(),
             hram: [0; 0x7F],            
         }
     }
@@ -88,6 +91,7 @@ impl Memory {
                     WY_REG => self.ppu.read_wy_reg(),
                     WX_REG => self.ppu.read_wx_reg(),
                     INTERRUPT_FLAG_REG => self.interrupt_handler.read_if_reg(),
+                    DMA => self.dma.read_source_address(),
                     _ => self.io[(address - IO_START) as usize],
                 } 
             }
@@ -140,11 +144,41 @@ impl Memory {
                     WY_REG => self.ppu.write_wy_reg(data_to_write),
                     WX_REG => self.ppu.write_wx_reg(data_to_write),
                     INTERRUPT_FLAG_REG => self.interrupt_handler.write_if_reg(data_to_write),
+                    DMA => self.dma.write_source_address(data_to_write),
                     _ => self.io[(address - IO_START) as usize] = data_to_write,
                 } 
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize] = data_to_write,
             INTERRUPT_ENABLE_START => self.interrupt_handler.write_ie_reg(data_to_write),
+        }
+    }
+
+    /**
+     * Will carry out one cpu clk cycle for DMA. This is essentially
+     * write to oam of the src address data
+     */
+    pub fn dma_cycle(&mut self) {
+        match self.dma.cycle() {
+            None => (),
+            Some((src_address, oam_offset)) => {
+                let oam_address = OAM_START + oam_offset as u16;
+                let src_address_data = self.read_byte(src_address);
+                self.write_byte(oam_address, src_address_data);
+            },
+        }
+    }
+
+    pub fn gpu_cycle(&mut self) {
+        self.ppu.cycle();
+
+        if self.ppu.vblank_interrupt_requested {
+            self.interrupt_handler.if_reg |= 0x1;
+            self.ppu.vblank_interrupt_requested = false;
+        }
+
+        if self.ppu.stat_interrupt_requested {
+            self.interrupt_handler.if_reg |= 0x2;
+            self.ppu.stat_interrupt_requested = false;
         }
     }
 

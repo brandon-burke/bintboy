@@ -3,20 +3,11 @@ use ndarray::Array2;
 use crate::binary_utils;
 use crate::constants::*;
 
-trait Pixel {
-    fn color_id() -> u8;
-}
-
 #[derive(Default, Clone, Copy)]
-struct SpritePixel {
+struct Pixel {
     color_id: u8,
     palette: u8,
     obj_to_bg_priority: bool,
-}
-
-#[derive(Default, Clone, Copy)]
-struct BgPixel {
-    color_id: u8,
 }
 
 impl Pixel {
@@ -28,26 +19,18 @@ impl Pixel {
             color_id: 0,
             palette: 0,
             obj_to_bg_priority: false,
-            is_sprite: false,
         }
     }
 
     /**
-     * Tells you whether the pixel is transparent if it's a sprite, or if it's white if it's a
-     * background pixel
+     * Tells you if the pixel is transparent. This should only be used on sprite pixels. Prob
+     * Should make 2 structs with one for sprites and other for window/bg
      */
-    fn is_transparent_or_white(&self, palette: u8) -> bool {
-        let color = match self.color_id {
-            0 => binary_utils::get_bit(palette, 1) << 1 | binary_utils::get_bit(palette, 0),
-            1 => binary_utils::get_bit(palette, 3) << 1 | binary_utils::get_bit(palette, 2),
-            2 => binary_utils::get_bit(palette, 5) << 1 | binary_utils::get_bit(palette, 4),
-            3 => binary_utils::get_bit(palette, 7) << 1 | binary_utils::get_bit(palette, 6),
-        };
-
-        match color {
-            0 => true,
-            _ => false,
+    fn is_transparent(&self) -> bool {
+        if self.color_id == 0 {
+            return true; 
         }
+        return false;
     }
 }
 
@@ -121,6 +104,9 @@ pub struct Ppu {
     x_scanline_coord: u8,       //This is not a real register but will help us keep track of the x position of the scanline
     drawing_window: bool,
     x_fetcher_coord: u8,
+    pub vblank_interrupt_requested: bool,
+    pub stat_interrupt_requested: bool,
+    stat_line: bool,
 }
 
 impl Ppu {
@@ -153,6 +139,9 @@ impl Ppu {
             x_scanline_coord: 0,
             drawing_window: false,
             x_fetcher_coord: 0,
+            vblank_interrupt_requested: false,
+            stat_interrupt_requested: false,
+            stat_line: false,
         }
     }
 
@@ -161,6 +150,11 @@ impl Ppu {
 
         match self.state {
             PpuState::OamScan => {
+                if self.clk_ticks == 1 {
+                    binary_utils::set_bit(self.stat_reg, 1);
+                    self.stat_reg
+                }
+
                 if self.clk_ticks == 80 {
                     let mut num_of_sprites_found = 0;
                     self.visible_sprites.clear();
@@ -182,7 +176,6 @@ impl Ppu {
                 }
             },
             PpuState::DrawingPixels => {
-                //Need to stall for for SCX % 8 dots and clearing fifos
                 if self.clk_ticks == 1 {
                     self.drawing_penalty += self.scx_reg % 8;
                     self.sprite_fifo.clear();
@@ -196,47 +189,35 @@ impl Ppu {
                 if self.drawing_penalty != 0 {
                     self.drawing_penalty -= 1;
                 } else {
-                    //Making sure we have enough pixels in the fifo before pushing any pixels out
+                    //Filling the bg/window fifo making sure it has more than 8 pixels at all times
                     while self.bg_window_fifo.len() <= 8 {
                         let mut new_pixel_row = self.fetch_tile_pixel_row();
                         self.bg_window_fifo.append(&mut new_pixel_row);
                     }
 
-                    //Checking if we need to fetch an object
+                    //Checking if we need to fetch an object and add it to the fifo
                     if self.visible_sprites.iter().any(|sprite| (*sprite).x_pos == self.x_scanline_coord + 8) {
                         let mut new_object_pixel_row = self.fetch_object_tile_row();
-                        while self.sprite_fifo.len() <= 8 {
-                            //self.sprite_fifo.push_back(Pixel { color_id: (), palette: (), obj_to_bg_priority: () }})
-                        }
-                        todo!("Need to implement the fetching cancel penalties")
-                    } else {    //Need to ensure that we have at least 8 pixels since we always mix OAM and bg/win fifo?
-                        while self.sprite_fifo.len() < 8 {
-                            self.sprite_fifo.push_back(Pixel::new());   //The new pixel should be a transparent low priority
-                        }
+                        self.sprite_fifo.append(&mut new_object_pixel_row);
                     }
 
-/*
                     //Start pixel mixing
-                    if !self.sprite_fifo.is_empty() && !self.bg_window_fifo.is_empty() {
-                        let sprite_pixel = self.sprite_fifo.pop_front().unwrap();
+                    let pixel_to_push = {
                         let background_pixel = self.bg_window_fifo.pop_front().unwrap();
-
-                        if !sprite_pixel.is_transparent_or_white(self.bgp_reg) && 
-                            binary_utils::get_bit(self.lcdc_reg, 1) != 0 && 
-                            binary_utils::get_bit(sprite_pixel, bit_position) {
-
+                        if !self.sprite_fifo.is_empty() {
+                            let sprite_pixel = self.sprite_fifo.pop_front().unwrap();
+                            if !sprite_pixel.is_transparent() && binary_utils::get_bit(self.lcdc_reg, 1) != 0 && !sprite_pixel.obj_to_bg_priority {
+                                sprite_pixel
+                            } else {
+                                background_pixel
+                            }
+                        } else {
+                            background_pixel
                         }
-                        
-
-
-                        let pixel_to_push = self.push
-                    }
-                    */
-
-
-
+                    };
+                    
                     //Sending the next pixel to the screen
-                    self.view_port[[self.x_scanline_coord as usize, self.ly_reg as usize]] = self.bg_window_fifo.pop_front().unwrap();
+                    self.view_port[[self.x_scanline_coord as usize, self.ly_reg as usize]] = pixel_to_push;
                 }
 
                 if self.clk_ticks == 172 {  //This number is not for certain this can vary
@@ -246,7 +227,6 @@ impl Ppu {
                 }                                                                        
 
                 self.x_scanline_coord += 1;
-                todo!("Need to implement the variable about of ticks this mode state can take (the penalty)");
             },
             PpuState::HorizontalBlank => {
                 if self.clk_ticks == 87 {
@@ -259,6 +239,10 @@ impl Ppu {
                 todo!("Need to implement the variable about of ticks this mode state can take");
             },
             PpuState::VerticalBlank => {
+                if self.clk_ticks == 1 {
+                    self.vblank_interrupt_requested = true;
+                }
+
                 if self.clk_ticks == 456 && self.ly_reg > 153 {  //Not sure if 153 is good to use
                     self.state = PpuState::OamScan;
                 }
@@ -266,6 +250,25 @@ impl Ppu {
                 todo!("Need to see if the ly reg value check is correct");
             },
         }
+
+        self.update_stat_interrupt();
+    }
+
+    /**
+     * This will update the stat interrupt line and request an interrupt it needed
+     */
+    fn update_stat_interrupt(&mut self) {
+        let lyc_int = binary_utils::get_bit(self.stat_reg, 6) != 0 && binary_utils::get_bit(self.stat_reg, 2) != 0;
+        let oam_scan_int = self.state == PpuState::OamScan && binary_utils::get_bit(self.stat_reg, 5) != 0;
+        let hblank_int = self.state == PpuState::HorizontalBlank && binary_utils::get_bit(self.stat_reg, 0) != 0;
+        let vblank_int = self.state == PpuState::VerticalBlank && binary_utils::get_bit(self.stat_reg, 1) != 0;
+        let stat_line = lyc_int || oam_scan_int || hblank_int || vblank_int;
+
+        if !self.stat_line && stat_line {
+            self.stat_interrupt_requested = true;
+        }
+
+        self.stat_line = stat_line;
     }
 
     pub fn read_tile_data_0(&self, address: u16) -> u8 {
@@ -514,7 +517,6 @@ impl Ppu {
                 color_id: bit,
                 palette: 0,
                 obj_to_bg_priority: false,
-                is_sprite: false,
             };
 
             pixel_row.push_back(pixel);
@@ -553,7 +555,6 @@ impl Ppu {
                 color_id: bit,
                 palette: binary_utils::get_bit(sprite.attribute_flags, 4),
                 obj_to_bg_priority: binary_utils::get_bit(sprite.attribute_flags, 7) != 0,
-                is_sprite: true,
             };
 
             pixel_row.push_back(pixel);
