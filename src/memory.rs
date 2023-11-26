@@ -12,6 +12,10 @@ pub struct Memory {
     wram_x: [u8; 0x1000],       //1KB  -> D000h – DFFFh (Work RAM)
     echo: [u8; 0x1E00],         //     -> E000h – FDFFh (ECHO RAM) Mirror of C000h-DDFFh
     unused: [u8; 0x60],         //     -> FEA0h – FEFFh (Unused)
+    
+
+
+
     io: [u8; 0x80],             //     -> FF00h – FF7Fh (I/O ports)
     pub interrupt_handler: InterruptHandler, //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
     ppu: Ppu,                   //Pixel Processing Unit. Houses most of the graphics related memory 
@@ -31,7 +35,7 @@ impl Memory {
             echo: [0; 0x1E00],                 
             unused: [0; 0x60],
             io: [0; 0x80],
-            interrupt_handler: InterruptHandler::new(), 
+            interrupt_handler: InterruptHandler::new(),
             timer: Timer::new(),              
             ppu: Ppu::new(),
             dma: Dma::new(),

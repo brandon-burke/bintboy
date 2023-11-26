@@ -8,6 +8,7 @@ pub mod interrupt_handler;
 pub mod ppu;
 pub mod constants;
 pub mod dma;
+pub mod joypad;
 
 use std::env;
 use std::fs::File;
