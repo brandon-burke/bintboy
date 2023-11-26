@@ -1,5 +1,6 @@
 use crate::timer::Timer;
-use crate::ppu::Ppu;
+use crate::dma::Dma;
+use crate::ppu::{ Ppu, PpuState };
 use crate::interrupt_handler::InterruptHandler;
 use crate::constants::*;
 
@@ -15,6 +16,7 @@ pub struct Memory {
     pub interrupt_handler: InterruptHandler, //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
     ppu: Ppu,                   //Pixel Processing Unit. Houses most of the graphics related memory 
     timer: Timer,               //     -> FF04 - FF07
+    dma: Dma,
     hram: [u8; 0x7F],           //     -> FF80h – FFFEh (HRAM)
 }
 
@@ -32,6 +34,7 @@ impl Memory {
             interrupt_handler: InterruptHandler::new(), 
             timer: Timer::new(),              
             ppu: Ppu::new(),
+            dma: Dma::new(),
             hram: [0; 0x7F],            
         }
     }
@@ -41,13 +44,17 @@ impl Memory {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize],
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize],
             VRAM_START ..= VRAM_END => {
-                match address {
-                    TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.read_tile_data_0(address),
-                    TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.read_tile_data_1(address),
-                    TILE_DATA_2_START ..= TILE_DATA_2_END => self.ppu.read_tile_data_2(address),
-                    TILE_MAP_0_START ..= TILE_MAP_0_END => self.ppu.read_tile_map_0(address),
-                    TILE_MAP_1_START ..= TILE_MAP_1_END => self.ppu.read_tile_map_1(address),
-                    _ => panic!("MEMORY READ ERROR: Should have never gotten here since we took care of all the VRAM addresses"),
+                if self.ppu.state != PpuState::DrawingPixels  {
+                    match address {
+                        TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.read_tile_data_0(address),
+                        TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.read_tile_data_1(address),
+                        TILE_DATA_2_START ..= TILE_DATA_2_END => self.ppu.read_tile_data_2(address),
+                        TILE_MAP_0_START ..= TILE_MAP_0_END => self.ppu.read_tile_map_0(address),
+                        TILE_MAP_1_START ..= TILE_MAP_1_END => self.ppu.read_tile_map_1(address),
+                        _ => panic!("MEMORY READ ERROR: Should have never gotten here since we took care of all the VRAM addresses"),
+                    }
+                } else {
+                    return 0xFF;
                 }
             },
             SRAM_START ..= SRAM_END => self.sram[(address - SRAM_START) as usize],
@@ -56,7 +63,13 @@ impl Memory {
             ECHO_START ..= ECHO_END => {
                 panic!("I don't think we should be accessing echo memory");
             }
-            OAM_START ..= OAM_END => self.ppu.read_oam(address),
+            OAM_START ..= OAM_END => {
+                if self.ppu.state != PpuState::OamScan && self.ppu.state != PpuState::DrawingPixels {
+                    self.ppu.read_oam(address)
+                } else {
+                    return 0xFF;
+                }
+            },
             UNUSED_START ..= UNUSED_END => {
                 panic!("I don't think we should be accessing unused memory");
             }
@@ -78,13 +91,13 @@ impl Memory {
                     WY_REG => self.ppu.read_wy_reg(),
                     WX_REG => self.ppu.read_wx_reg(),
                     INTERRUPT_FLAG_REG => self.interrupt_handler.read_if_reg(),
+                    DMA => self.dma.read_source_address(),
                     _ => self.io[(address - IO_START) as usize],
                 } 
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize],
             INTERRUPT_ENABLE_START => self.interrupt_handler.read_ie_reg(),
-            _ => panic!("MEMORY ACCESS OUT OF BOUNDS"),
-        } 
+        }
     }
 
     pub fn write_byte(&mut self, address: u16, data_to_write: u8) {
@@ -92,13 +105,15 @@ impl Memory {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize] = data_to_write,
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize] = data_to_write,
             VRAM_START ..= VRAM_END => {
-                match address {
-                    TILE_DATA_0_START => self.ppu.write_tile_data_0(address, data_to_write),
-                    TILE_DATA_1_START => self.ppu.write_tile_data_1(address, data_to_write),
-                    TILE_DATA_2_START => self.ppu.write_tile_data_2(address, data_to_write),
-                    TILE_MAP_0_START => self.ppu.write_tile_map_0(address, data_to_write),
-                    TILE_MAP_1_START => self.ppu.write_tile_map_1(address, data_to_write),
-                    _ => panic!("MEMORY WRITE ERROR: Should have never gotten here since we took care of all the VRAM addresses"),
+                if self.ppu.state != PpuState::DrawingPixels  {
+                    match address {
+                        TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.write_tile_data_0(address, data_to_write),
+                        TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.write_tile_data_1(address, data_to_write),
+                        TILE_DATA_2_START ..= TILE_DATA_2_END => self.ppu.write_tile_data_2(address, data_to_write),
+                        TILE_MAP_0_START ..= TILE_MAP_0_END => self.ppu.write_tile_map_0(address, data_to_write),
+                        TILE_MAP_1_START ..= TILE_MAP_1_END => self.ppu.write_tile_map_1(address, data_to_write),
+                        _ => panic!("MEMORY WRITE ERROR: Should have never gotten here since we took care of all the VRAM addresses"),
+                    }
                 }
             },
             SRAM_START ..= SRAM_END => self.sram[(address - SRAM_START) as usize] = data_to_write,
@@ -129,13 +144,42 @@ impl Memory {
                     WY_REG => self.ppu.write_wy_reg(data_to_write),
                     WX_REG => self.ppu.write_wx_reg(data_to_write),
                     INTERRUPT_FLAG_REG => self.interrupt_handler.write_if_reg(data_to_write),
+                    DMA => self.dma.write_source_address(data_to_write),
                     _ => self.io[(address - IO_START) as usize] = data_to_write,
                 } 
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize] = data_to_write,
             INTERRUPT_ENABLE_START => self.interrupt_handler.write_ie_reg(data_to_write),
-            _ => panic!("MEMORY ACCESS OUT OF BOUNDS"),
-        } 
+        }
+    }
+
+    /**
+     * Will carry out one cpu clk cycle for DMA. This is essentially
+     * write to oam of the src address data
+     */
+    pub fn dma_cycle(&mut self) {
+        match self.dma.cycle() {
+            None => (),
+            Some((src_address, oam_offset)) => {
+                let oam_address = OAM_START + oam_offset as u16;
+                let src_address_data = self.read_byte(src_address);
+                self.write_byte(oam_address, src_address_data);
+            },
+        }
+    }
+
+    pub fn gpu_cycle(&mut self) {
+        self.ppu.cycle();
+
+        if self.ppu.vblank_interrupt_requested {
+            self.interrupt_handler.if_reg |= 0x1;
+            self.ppu.vblank_interrupt_requested = false;
+        }
+
+        if self.ppu.stat_interrupt_requested {
+            self.interrupt_handler.if_reg |= 0x2;
+            self.ppu.stat_interrupt_requested = false;
+        }
     }
 
     pub fn timer_cycle(&mut self) {
