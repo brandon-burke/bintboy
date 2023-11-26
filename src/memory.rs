@@ -1,4 +1,6 @@
 use crate::timer::Timer;
+use crate::joypad::Joypad;
+use crate::serial_transfer::SerialTransfer;
 use crate::dma::Dma;
 use crate::ppu::{ Ppu, PpuState };
 use crate::interrupt_handler::InterruptHandler;
@@ -12,7 +14,8 @@ pub struct Memory {
     wram_x: [u8; 0x1000],       //1KB  -> D000h – DFFFh (Work RAM)
     echo: [u8; 0x1E00],         //     -> E000h – FDFFh (ECHO RAM) Mirror of C000h-DDFFh
     unused: [u8; 0x60],         //     -> FEA0h – FEFFh (Unused)
-    
+    joypad: Joypad,             //     -> FF00h         (Joypad)
+    serial: SerialTransfer,     //     -> FF01h - FF02h (Serial Transfer)
 
 
 
@@ -34,6 +37,8 @@ impl Memory {
             wram_x: [0; 0x1000],   
             echo: [0; 0x1E00],                 
             unused: [0; 0x60],
+            joypad: Joypad::new(),
+            serial: SerialTransfer::new(),
             io: [0; 0x80],
             interrupt_handler: InterruptHandler::new(),
             timer: Timer::new(),              
@@ -79,6 +84,9 @@ impl Memory {
             }
             IO_START ..= IO_END => {
                 match address {
+                    JOYPAD_P1_REG => self.joypad.read_joypad_reg(),
+                    SERIAL_SB_REG => self.serial.read_sb_reg(),
+                    SERIAL_SC_REG => self.serial.read_sc_reg(),
                     TIMER_DIV_REG => self.timer.read_div(),
                     TIMER_TIMA_REG => self.timer.read_tima(),
                     TIMER_TMA_REG => self.timer.read_tma(),
@@ -132,6 +140,9 @@ impl Memory {
             }
             IO_START ..= IO_END => {
                 match address {
+                    JOYPAD_P1_REG => self.joypad.write_joypad_reg(data_to_write),
+                    SERIAL_SB_REG => self.serial.write_sb_reg(data_to_write),
+                    SERIAL_SC_REG => self.serial.write_sc_reg(data_to_write),
                     TIMER_DIV_REG => self.timer.write_2_div(),
                     TIMER_TIMA_REG => self.timer.write_2_tima(data_to_write),
                     TIMER_TMA_REG => self.timer.write_2_tma(data_to_write),

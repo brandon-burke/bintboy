@@ -54,3 +54,8 @@ pub const WY_REG: u16 = 0xFF4A;
 pub const WX_REG: u16 = 0xFF4B;
 
 pub const DMA: u16 = 0xFF46;
+
+pub const JOYPAD_P1_REG: u16 = 0xFF00;
+
+pub const SERIAL_SB_REG: u16 = 0xFF01;
+pub const SERIAL_SC_REG: u16 = 0xFF02;
