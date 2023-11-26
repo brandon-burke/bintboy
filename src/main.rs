@@ -29,6 +29,8 @@ fn main() {
         if !memory.interrupt_handler.handling_isr {
             cpu.cycle(&mut memory);
         }
+
+        //Only try to service an interrupt if you finished an instruction
         match cpu.cpu_state {
             cpu_state::CpuState::Fetch => memory.interrupt_cycle(&mut cpu.pc, &mut cpu.sp),
             _ => (),

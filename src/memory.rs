@@ -1,6 +1,6 @@
 use crate::timer::Timer;
 use crate::dma::Dma;
-use crate::ppu::{ Ppu, PpuState, self };
+use crate::ppu::{ Ppu, PpuState };
 use crate::interrupt_handler::InterruptHandler;
 use crate::constants::*;
 

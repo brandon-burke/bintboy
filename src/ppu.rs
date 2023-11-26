@@ -34,10 +34,6 @@ impl Pixel {
     }
 }
 
-
-
-
-
 #[derive(PartialEq, PartialOrd)]
 pub enum PpuState {
     OamScan,            //Mode2
@@ -147,12 +143,14 @@ impl Ppu {
 
     pub fn cycle(&mut self) {
         self.clk_ticks += 1;
+        self.update_lyc_and_ly_compare();
 
         match self.state {
             PpuState::OamScan => {
                 if self.clk_ticks == 1 {
+                    //Need to change the mode in the stat register
+                    binary_utils::reset_bit(self.stat_reg, 0);
                     binary_utils::set_bit(self.stat_reg, 1);
-                    self.stat_reg
                 }
 
                 if self.clk_ticks == 80 {
@@ -183,6 +181,7 @@ impl Ppu {
                     self.x_fetcher_coord = 0;
                     self.x_scanline_coord = 0;
                     self.ly_reg = 0;
+                    self.stat_reg |= 0x3;
                 }
 
                 //Just leave if we have a drawing penalty otherwise draw a pixel
@@ -229,6 +228,12 @@ impl Ppu {
                 self.x_scanline_coord += 1;
             },
             PpuState::HorizontalBlank => {
+                if self.clk_ticks == 1 {
+                    binary_utils::reset_bit(self.stat_reg, 0);
+                    binary_utils::reset_bit(self.stat_reg, 0);
+                }
+
+
                 if self.clk_ticks == 87 {
                     self.clk_ticks = 0;
                     self.state = PpuState::OamScan;
@@ -240,6 +245,8 @@ impl Ppu {
             },
             PpuState::VerticalBlank => {
                 if self.clk_ticks == 1 {
+                    binary_utils::reset_bit(self.stat_reg, 1);
+                    binary_utils::set_bit(self.stat_reg, 0);
                     self.vblank_interrupt_requested = true;
                 }
 
@@ -252,6 +259,14 @@ impl Ppu {
         }
 
         self.update_stat_interrupt();
+    }
+
+    fn update_lyc_and_ly_compare(&mut self) {
+        if self.lyc_reg == self.ly_reg {
+            binary_utils::set_bit(self.stat_reg, 2);
+        } else {
+            binary_utils::reset_bit(self.stat_reg, 2);
+        }
     }
 
     /**
