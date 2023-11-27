@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-use ndarray::Array2;
 use crate::binary_utils;
 use crate::constants::*;
 
@@ -93,7 +92,6 @@ pub struct Ppu {
     wy_reg: u8,                 //$FF4A - Window y position
     pub state: PpuState,
     clk_ticks: u16,
-    view_port: Array2<Pixel>,
     drawing_penalty: u8,
     bg_window_fifo: VecDeque<Pixel>,
     sprite_fifo: VecDeque<Pixel>,
@@ -128,7 +126,6 @@ impl Ppu {
             wy_reg: 0,
             state: PpuState::OamScan,
             clk_ticks: 0,
-            view_port: Array2::default((160, 144)),
             drawing_penalty: 0,
             bg_window_fifo: VecDeque::with_capacity(16),
             sprite_fifo: VecDeque::with_capacity(16),
@@ -214,9 +211,6 @@ impl Ppu {
                             background_pixel
                         }
                     };
-                    
-                    //Sending the next pixel to the screen
-                    self.view_port[[self.x_scanline_coord as usize, self.ly_reg as usize]] = pixel_to_push;
                 }
 
                 if self.clk_ticks == 172 {  //This number is not for certain this can vary
@@ -576,40 +570,6 @@ impl Ppu {
         }
 
         return pixel_row;
-    }
-
-
-
-
-
-
-
-    /**
-     * Will shift the entire frame of the view port to the right
-     */
-    fn scroll_frame_right(grid: &mut Array2<u8>) {
-        for row in grid.rows_mut() {
-            let mut prev_ele = *row.last().unwrap();
-            for ele in row {
-                let temp = *ele;
-                *ele = prev_ele;
-                prev_ele = temp;
-            }
-        }
-    }
-
-    /**
-     * Will shift the entire frame of the view port to the left
-     */
-    fn scroll_left(grid: &mut Array2<u8>) {
-        for mut row in grid.rows_mut() {
-            let mut prev_ele = *row.first().unwrap();
-            for ele in row.iter_mut().rev() {
-                let temp = *ele;
-                *ele = prev_ele;
-                prev_ele = temp;
-            }
-        }
     }
 }
 
