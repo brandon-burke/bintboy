@@ -16,14 +16,12 @@ pub struct Memory {
     unused: [u8; 0x60],         //     -> FEA0h – FEFFh (Unused)
     joypad: Joypad,             //     -> FF00h         (Joypad)
     serial: SerialTransfer,     //     -> FF01h - FF02h (Serial Transfer)
-
-
+    timer: Timer,               //     -> FF04h - FF07h
+    ppu: Ppu,                   //Pixel Processing Unit. Houses most of the graphics related memory
+    dma: Dma,                   //     -> FF46h OAM DMA source address register
 
     io: [u8; 0x80],             //     -> FF00h – FF7Fh (I/O ports)
     pub interrupt_handler: InterruptHandler, //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
-    ppu: Ppu,                   //Pixel Processing Unit. Houses most of the graphics related memory 
-    timer: Timer,               //     -> FF04 - FF07
-    dma: Dma,
     hram: [u8; 0x7F],           //     -> FF80h – FFFEh (HRAM)
 }
 
@@ -39,10 +37,10 @@ impl Memory {
             unused: [0; 0x60],
             joypad: Joypad::new(),
             serial: SerialTransfer::new(),
+            timer: Timer::new(),
+            ppu: Ppu::new(),
             io: [0; 0x80],
             interrupt_handler: InterruptHandler::new(),
-            timer: Timer::new(),              
-            ppu: Ppu::new(),
             dma: Dma::new(),
             hram: [0; 0x7F],            
         }
@@ -109,6 +107,7 @@ impl Memory {
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize],
             INTERRUPT_ENABLE_START => self.interrupt_handler.read_ie_reg(),
+            _ => panic!("Did not account for reading of address {}", address),
         }
     }
 
@@ -165,6 +164,7 @@ impl Memory {
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize] = data_to_write,
             INTERRUPT_ENABLE_START => self.interrupt_handler.write_ie_reg(data_to_write),
+            _ => panic!("Did not account for writing of address {}", address),
         }
     }
 

@@ -10,6 +10,7 @@ pub mod constants;
 pub mod dma;
 pub mod joypad;
 pub mod serial_transfer;
+mod ppu_new;
 
 use std::env;
 use std::fs::File;
