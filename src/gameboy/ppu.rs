@@ -1,7 +1,7 @@
 
 
 
-struct Ppu {
+pub struct Ppu {
     tile_data_0: [Tile; 128],       //$8000–$87FF
     tile_data_1: [Tile; 128],       //$8800–$8FFF
     tile_data_2: [Tile; 128],       //$9000–$97FF
@@ -14,7 +14,7 @@ struct Ppu {
 }
 
 impl Ppu {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             tile_data_0: [Tile::new(); 128],
             tile_data_1: [Tile::new(); 128],
@@ -28,7 +28,7 @@ impl Ppu {
         }
     }
 
-    fn cycle(&mut self) {
+    pub fn cycle(&mut self) {
         self.clk_ticks += 1;    //Keeps track of how many ticks during a mode
 
         match self.ppu_registers.stat.ppu_mode {
@@ -78,6 +78,10 @@ impl Ppu {
             return true;
         }
         return false;
+    }
+
+    pub fn current_mode(&self) -> PpuMode {
+        return self.ppu_registers.stat.ppu_mode;
     }
 }
 
@@ -249,7 +253,7 @@ enum SpriteSize {
     _8x16,
 }
 
-enum PpuMode {
+pub enum PpuMode {
     OamScan,        //Mode 2
     DrawingPixels,  //Mode 3
     Hblank,         //Mode 0

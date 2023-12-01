@@ -1,10 +1,12 @@
-use crate::timer::Timer;
-use crate::joypad::Joypad;
-use crate::serial_transfer::SerialTransfer;
-use crate::dma::Dma;
-use crate::ppu::{ Ppu, PpuState };
-use crate::interrupt_handler::InterruptHandler;
-use crate::constants::*;
+
+
+use crate::gameboy::timer::Timer;
+use crate::gameboy::joypad::Joypad;
+use crate::gameboy::serial_transfer::SerialTransfer;
+use crate::gameboy::dma::Dma;
+use crate::gameboy::ppu::{ Ppu, PpuMode };
+use crate::gameboy::interrupt_handler::InterruptHandler;
+use crate::gameboy::constants::*;
 
 pub struct Memory {
     rom_bank_0: [u8; 0x4000],   //16KB -> 0000h – 3FFFh (Non-switchable ROM bank)
@@ -51,7 +53,7 @@ impl Memory {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize],
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize],
             VRAM_START ..= VRAM_END => {
-                if self.ppu.state != PpuState::DrawingPixels  {
+                if self.ppu.current_mode() != PpuMode::DrawingPixels  {
                     match address {
                         TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.read_tile_data_0(address),
                         TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.read_tile_data_1(address),

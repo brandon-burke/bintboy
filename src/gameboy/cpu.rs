@@ -1,7 +1,6 @@
 pub mod cpu_state;
 
 use core::panic;
-
 use crate::interrupt_handler::{self, Interrupt};
 use crate::gameboy::Memory;
 use crate::opcodes::{OPCODE_MACHINE_CYCLES, PREFIX_OPCODE_MACHINE_CYCLES};

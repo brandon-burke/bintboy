@@ -1,7 +1,13 @@
 mod cpu;
 mod memory;
+mod ppu;
+mod timer;
+mod serial_transfer;
+mod joypad;
+mod dma;
 
-use crate::gameboy::cpu::Cpu;
+
+use crate::gameboy::cpu::{Cpu, cpu_state};
 use crate::gameboy::memory::Memory;
 
 pub struct Gameboy {
