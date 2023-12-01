@@ -1,3 +1,6 @@
+
+
+
 struct Ppu {
     tile_data_0: [Tile; 128],       //$8000–$87FF
     tile_data_1: [Tile; 128],       //$8800–$8FFF
@@ -30,20 +33,26 @@ impl Ppu {
 
         match self.ppu_registers.stat.ppu_mode {
             PpuMode::OamScan => {
-                //This step finds all the objects that overlap this line
-                //Need to go through OAM and find the up to 1st 10 objects
-                //That overlap the current scanline
-
-                for sprite in self.oam {
-                    if self.is_sprite_visible_in_scanline(&sprite) {
-                        self.visible_sprites.push(sprite);
+                //Finding up to 10 sprites that overlap the current scanline (ly)
+                //We're mimicking that it takes 80 clks to do this
+                if self.clk_ticks == 80 {
+                    self.visible_sprites.clear();   //Making sure we don't keep sprites from the previous scanline
+                    for sprite in self.oam {
+                        if self.is_sprite_visible_in_scanline(&sprite) {
+                            self.visible_sprites.push(sprite);
+                        }
+    
+                        if self.visible_sprites.len() == 10 {
+                            break;
+                        }
                     }
-
-                    if self.vi
+                    self.clk_ticks = 0;
+                    self.ppu_registers.stat.ppu_mode = PpuMode::DrawingPixels;
                 }
-
             },
-            PpuMode::DrawingPixels => todo!(),
+            PpuMode::DrawingPixels => {
+                
+            },
             PpuMode::Hblank => todo!(),
             PpuMode::Vblank => todo!(),
         }
@@ -306,5 +315,13 @@ impl PaletteReg {
             color_id_3: PaletteColors::Black,
         }
     }
+}
+
+/**
+ * Represents the pixel fetcher in the gameboy. It'll house all the things 
+ * necessary to fetch sprite, bg, and window pixels
+ */
+struct PixelFetcher {
+
 }
 

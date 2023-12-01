@@ -1,10 +1,12 @@
+pub mod cpu_state;
+
 use core::panic;
 
 use crate::interrupt_handler::{self, Interrupt};
-use crate::memory::Memory;
-use crate::cpu_state::{CpuState, Status};
+use crate::gameboy::Memory;
 use crate::opcodes::{OPCODE_MACHINE_CYCLES, PREFIX_OPCODE_MACHINE_CYCLES};
 use crate::binary_utils::{self, split_16bit_num, build_16bit_num};
+use self::cpu_state::{CpuState, Status};
 
 const MACHINE_CYCLE: u8 = 4;
 const PREFIX_OPCODE: u8 = 0xCB;

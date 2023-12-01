@@ -1,50 +1,22 @@
-pub mod cpu;
-pub mod cpu_state;
-pub mod memory;
-pub mod timer;
-pub mod opcodes;
-pub mod binary_utils;
-pub mod interrupt_handler;
-pub mod ppu;
-pub mod constants;
-pub mod dma;
-pub mod joypad;
-pub mod serial_transfer;
-mod ppu_new;
+mod gameboy;
+
 
 use std::env;
 use std::fs::File;
 use std::io::Read;
+
+use crate::gameboy::Gameboy;
+
+/**
+ * This is where the gameboy emulator starts. It takes in command line arguments
+ * that specify what gameboy rom to run
+ */
 fn main() {
     let args = env::args().collect::<Vec<String>>();
     let (rom_file_0, rom_file_1) = create_rom_file(&args[1]);
-    // let args = "test_roms/individual/02-interrupts.gb";
-    // let (rom_file_0, rom_file_1) = create_rom_file(args);
-    let mut cpu = cpu::Cpu::new();
-    let mut memory = memory::Memory::new();
+    let gameboy = Gameboy::new();
 
-
-    println!("Loading rom...");
-    memory.load_rom(rom_file_0, rom_file_1);
-
-    loop {
-        memory.timer_cycle();
-        if !memory.interrupt_handler.handling_isr {
-            cpu.cycle(&mut memory);
-        }
-
-        //Only try to service an interrupt if you finished an instruction
-        match cpu.cpu_state {
-            cpu_state::CpuState::Fetch => memory.interrupt_cycle(&mut cpu.pc, &mut cpu.sp),
-            _ => (),
-        }        
-
-        if memory.read_byte(0xff02) == 0x81 {
-            let byte = memory.read_byte(0xff01);
-            print!("{}", byte as char);
-            memory.write_byte(0xff02, 0);
-        }
-    }
+    gameboy.run(rom_file_0, rom_file_1);
 }
 
 /**
