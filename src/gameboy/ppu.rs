@@ -1,6 +1,11 @@
+pub mod enums;
+mod registers;
+mod tile_and_sprite;
 
-
-
+use self::registers::PpuRegisters;
+use self::enums::{PpuMode, SpriteSize};
+use self::tile_and_sprite::*;
+use crate::gameboy::constants::*;
 pub struct Ppu {
     tile_data_0: [Tile; 128],       //$8000–$87FF
     tile_data_1: [Tile; 128],       //$8800–$8FFF
@@ -31,7 +36,7 @@ impl Ppu {
     pub fn cycle(&mut self) {
         self.clk_ticks += 1;    //Keeps track of how many ticks during a mode
 
-        match self.ppu_registers.stat.ppu_mode {
+        match self.current_mode() {
             PpuMode::OamScan => {
                 //Finding up to 10 sprites that overlap the current scanline (ly)
                 //We're mimicking that it takes 80 clks to do this
@@ -47,12 +52,10 @@ impl Ppu {
                         }
                     }
                     self.clk_ticks = 0;
-                    self.ppu_registers.stat.ppu_mode = PpuMode::DrawingPixels;
+                    self.ppu_registers.set_mode(PpuMode::DrawingPixels);
                 }
             },
-            PpuMode::DrawingPixels => {
-                
-            },
+            PpuMode::DrawingPixels => todo!(),
             PpuMode::Hblank => todo!(),
             PpuMode::Vblank => todo!(),
         }
@@ -65,7 +68,7 @@ impl Ppu {
      */
     fn is_sprite_visible_in_scanline(&self, sprite: &Sprite) -> bool {
         let current_scanline = self.ppu_registers.ly + 16;
-        let sprite_y_pos_end = match self.ppu_registers.lcdc.sprite_size {
+        let sprite_y_pos_end = match self.ppu_registers.sprite_size() {
             SpriteSize::_8x8 => sprite.y_pos + 8,
             SpriteSize::_8x16 => sprite.y_pos + 16,
         };
@@ -83,243 +86,173 @@ impl Ppu {
     pub fn current_mode(&self) -> PpuMode {
         return self.ppu_registers.stat.ppu_mode;
     }
-}
 
+    pub fn read_tile_data_0(&self, address: u16) -> u8 {
+        let tile_idx = (address - TILE_DATA_0_START) / 16;
+        let byte_idx = (address - TILE_DATA_0_START) - (tile_idx * 16);
+        return self.tile_data_0[tile_idx as usize].pixel_rows[byte_idx as usize];
+    }
 
-/*
-    Represents a 8x8 square of pixels. Here we have an array of PixelRows
-    where each PixelRow in the array represents the data of a row of pixels
-    in the Tile
- */
-#[derive(Clone, Copy)]
-struct Tile {
-    pixel_rows: [TileRow; 8]
-}
+    pub fn write_tile_data_0(&mut self, address: u16, value: u8) {
+        let tile_idx = (address - TILE_DATA_0_START) / 16;
+        let byte_idx = (address - TILE_DATA_0_START) - (tile_idx * 16);
+        self.tile_data_0[tile_idx as usize].pixel_rows[byte_idx as usize] = value;
+    }
 
-impl Tile {
-    fn new() -> Self {
-        Self {
-            pixel_rows: [TileRow::new(); 8]
+    pub fn read_tile_data_1(&self, address: u16) -> u8 {
+        let tile_idx = (address - TILE_DATA_1_START) / 16;
+        let byte_idx = (address - TILE_DATA_1_START) - (tile_idx * 16);
+        return self.tile_data_1[tile_idx as usize].pixel_rows[byte_idx as usize];
+    }
+
+    pub fn write_tile_data_1(&mut self, address: u16, value: u8) {
+        let tile_idx = (address - TILE_DATA_1_START) / 16;
+        let byte_idx = (address - TILE_DATA_1_START) - (tile_idx * 16);
+        self.tile_data_1[tile_idx as usize].pixel_rows[byte_idx as usize] = value;
+    }
+
+    pub fn read_tile_data_2(&self, address: u16) -> u8 {
+        let tile_idx = (address - TILE_DATA_2_START) / 16;
+        let byte_idx = (address - TILE_DATA_2_START) - (tile_idx * 16);
+        return self.tile_data_2[tile_idx as usize].pixel_rows[byte_idx as usize];
+    }
+
+    pub fn write_tile_data_2(&mut self, address: u16, value: u8) {
+        let tile_idx = (address - TILE_DATA_2_START) / 16;
+        let byte_idx = (address - TILE_DATA_2_START) - (tile_idx * 16);
+        self.tile_data_2[tile_idx as usize].pixel_rows[byte_idx as usize] = value;
+    }
+
+    pub fn read_tile_map_0(&self, address: u16) -> u8 {
+        return self.tile_map_0[(address - TILE_MAP_0_START) as usize];
+    }
+
+    pub fn write_tile_map_0(&mut self, address: u16, value: u8) {
+        self.tile_map_0[(address - TILE_MAP_0_START) as usize] = value;
+    }
+
+    pub fn read_tile_map_1(&self, address: u16) -> u8 {
+        return self.tile_map_1[(address - TILE_MAP_1_START) as usize];
+    }
+
+    pub fn write_tile_map_1(&mut self, address: u16, value: u8) {
+        self.tile_map_1[(address - TILE_MAP_1_START) as usize] = value;
+    }
+
+    pub fn read_oam(&self, address: u16) -> u8 {
+        let sprite_idx = (address - OAM_START) / 4;
+        let byte_idx = (address - OAM_START) - (sprite_idx * 4);
+
+        match byte_idx {
+            0 => self.oam[sprite_idx as usize].y_pos,
+            1 => self.oam[sprite_idx as usize].x_pos,
+            2 => self.oam[sprite_idx as usize].tile_index,
+            3 => self.oam[sprite_idx as usize].attribute_flags,
+            _ => panic!("While reading OAM ram it looks like your idx was more than 3")
         }
+    }
+
+    pub fn write_oam(&mut self, address: u16, value: u8) {
+        let sprite_idx = (address - OAM_START) / 4;
+        let byte_idx = (address - OAM_START) - (sprite_idx * 4);
+        match byte_idx {
+            0 => self.oam[sprite_idx as usize].y_pos = value,
+            1 => self.oam[sprite_idx as usize].x_pos = value,
+            2 => self.oam[sprite_idx as usize].tile_index = value,
+            3 => self.oam[sprite_idx as usize].attribute_flags = value,
+            _ => panic!("While writing OAM ram it looks like your idx was more than 3")
+        }
+    }
+
+    pub fn read_bgp_reg(&self) -> u8 {
+        return self.ppu_registers.bgp;
+    }
+
+    pub fn write_bgp_reg(&mut self, value: u8) {
+        self.ppu_registers.bgp = value;
+    }
+
+    pub fn read_obp0_reg(&self) -> u8 {
+        return self.ppu_registers.obp0_reg;
+    }
+
+    pub fn write_obp0_reg(&mut self, value: u8) {
+        self.ppu_registers.obp0_reg = value;
+    }
+
+    pub fn read_obp1_reg(&self) -> u8 {
+        return self.ppu_registers.obp1_reg;
+    }
+
+    pub fn write_obp1_reg(&mut self, value: u8) {
+        self.ppu_registers.obp1_reg = value;
+    }
+
+    pub fn read_scy_reg(&self) -> u8 {
+        return self.ppu_registers.scy_reg;
+    }
+
+    pub fn write_scy_reg(&mut self, value: u8) {
+        self.ppu_registers.scy_reg = value;
+    }
+
+    pub fn read_scx_reg(&self) -> u8 {
+        return self.ppu_registers.scx_reg;
+    }
+
+    pub fn write_scx_reg(&mut self, value: u8) {
+        self.ppu_registers.scx_reg = value;
+    }
+
+    pub fn read_lcdc_reg(&self) -> u8 {
+        return self.ppu_registers.lcdc_reg;
+    }
+
+    pub fn write_lcdc_reg(&mut self, value: u8) {
+        self.ppu_registers.lcdc_reg = value;
+    }
+
+    pub fn read_ly_reg(&self) -> u8 {
+        return self.ppu_registers.ly_reg;
+    }
+
+    pub fn write_ly_reg(&mut self, value: u8) {
+        self.ppu_registers.ly_reg = value;
+    }
+
+    pub fn read_lyc_reg(&self) -> u8 {
+        return self.ppu_registers.lyc_reg;
+    }
+
+    pub fn write_lyc_reg(&mut self, value: u8) {
+        self.ppu_registers.lyc_reg = value;
+    }
+
+    pub fn read_stat_reg(&self) -> u8 {
+        return self.ppu_registers.stat_reg;
+    }
+
+    pub fn write_stat_reg(&mut self, value: u8) {
+        self.ppu_registers.stat_reg = value;
+    }
+
+    pub fn read_wx_reg(&self) -> u8 {
+        return self.ppu_registers.wx_reg;
+    }
+
+    pub fn write_wx_reg(&mut self, value: u8) {
+        self.ppu_registers.wx_reg = value;
+    }
+
+    pub fn read_wy_reg(&self) -> u8 {
+        return self.ppu_registers.wy_reg;
+    }
+
+    pub fn write_wy_reg(&mut self, value: u8) {
+        self.ppu_registers.wy_reg = value;
     }
 }
 
-/* Represents the data to create a row of pixels. */
-#[derive(Clone, Copy)]
-struct TileRow {
-    lower_bits: u8,
-    upper_bits: u8,
-}
-
-impl TileRow {
-    fn new() -> Self {
-        Self {
-            lower_bits: 0,
-            upper_bits: 0,
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-struct Sprite {
-    y_pos: u8,
-    x_pos: u8,
-    tile_index: u8,
-    priority: SpritePriority,
-    y_flip: Orientation,
-    x_flip: Orientation,
-    dmg_palette: SpritePalette,     //Non CGB Mode only
-    bank: VramBank,                 //CGB Mode only
-    cgb_palette: SpritePalette      //CGB Mode only
-}
-
-impl Sprite {
-    fn new() -> Self {
-        Self {
-            y_pos: 0,
-            x_pos: 0,
-            tile_index: 0,
-            priority: SpritePriority::OverBg,
-            y_flip: Orientation::Normal,
-            x_flip: Orientation::Normal,
-            dmg_palette: SpritePalette::Obp0,
-            bank: VramBank::Bank0,
-            cgb_palette: SpritePalette::Obp0,
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-enum SpritePriority{
-    OverBg,     //Sprite should draw over background and window
-    UnderBg,    //Background and window colors 1-3 are drawn over the Sprite
-}
-
-
-/* Represents whether a sprite is mirrored or not */
-#[derive(Clone, Copy)]
-enum Orientation {
-    Normal,
-    Mirrored,
-}
-
-/* Represents the options for a palette that a sprite can use */
-#[derive(Clone, Copy)]
-enum SpritePalette {
-    Obp0,
-    Obp1,
-    Obp2,
-    Obp3,
-    Obp4,
-    Obp5,
-    Obp6,
-    Obp7,
-}
-
-#[derive(Clone, Copy)]
-enum VramBank {
-    Bank0,
-    Bank1,
-}
-
-/* Represents the LCD Control register (LCDC) */
-struct LcdcReg {
-    lcd_ppu_enable: State,
-    win_tile_map_area: TileMapArea,
-    win_enable: State,
-    bg_win_tile_data_area: TileDataArea,
-    bg_tile_map_area: TileMapArea,
-    sprite_size: SpriteSize,
-    sprite_enable: State,
-    bg_win_priority: State,
-}
-
-impl LcdcReg {
-    fn new() -> Self {
-        Self {
-            lcd_ppu_enable: State::Off,
-            win_tile_map_area: TileMapArea::_9800,
-            win_enable: State::Off,
-            bg_win_tile_data_area: TileDataArea::_8000,
-            bg_tile_map_area: TileMapArea::_9800,
-            sprite_size: SpriteSize::_8x8,
-            sprite_enable: State::Off,
-            bg_win_priority: State::Off,
-        }
-    }
-}
-
-struct StatReg {
-    unused_bit_7: u8,
-    lyc_int_select: State,
-    mode_2_int_select: State,
-    mode_1_int_select: State,
-    mode_0_int_select: State,
-    lyc_ly_compare: State,      //Read-Only
-    ppu_mode: PpuMode,          //Read-Only
-}
-
-impl StatReg {
-    fn new() -> Self {
-        Self {
-            unused_bit_7: 0,
-            lyc_int_select: State::Off,
-            mode_2_int_select: State::Off,
-            mode_1_int_select: State::Off,
-            mode_0_int_select: State::Off,
-            lyc_ly_compare: State::Off,
-            ppu_mode: PpuMode::OamScan,
-        }
-    }
-}
-
-enum State {
-    On,
-    Off,
-}
-
-enum TileMapArea {
-    _9800,
-    _9C00,
-}
-
-enum TileDataArea {
-    _8800,
-    _8000,
-}
-
-enum SpriteSize {
-    _8x8,
-    _8x16,
-}
-
-pub enum PpuMode {
-    OamScan,        //Mode 2
-    DrawingPixels,  //Mode 3
-    Hblank,         //Mode 0
-    Vblank,         //Mode 1
-}
-
-struct PpuRegisters {
-    lcdc: LcdcReg,      //$FF40 - LCD Control register
-    ly: u8,             //READ-ONLY -> $FF44 - LCD y coordinate register (current horizontal line which might be able to be drawn, being drawn, or just been drawn)
-    lyc: u8,            //$FF45 - LY compare register. Can use this register to trigger an interrupt when LY reg and this reg are the same value
-    stat: StatReg,      //$FF41 - LCD status register
-    scx: u8,            //$FF43 - Scrolling x register
-    scy: u8,            //$FF42 - Scrolling y register
-    wx: u8,             //$FF4B - Window x position
-    wy: u8,             //$FF4A - Window y position
-    bgp: PaletteReg,    //$FF47 - Background palette data - Non-CGB Mode only
-    obp0: PaletteReg,   //$FF48 - Object palette 0 data - Non-CGB Mode only
-    obp1: PaletteReg,   //$FF49 - Object palette 1 data - Non-CGB Mode only
-}
-
-impl PpuRegisters {
-    fn new() -> Self {
-        Self {
-            lcdc: LcdcReg::new(),
-            ly: 0,
-            lyc: 0,
-            stat: StatReg::new(),
-            scx: 0,
-            scy: 0,
-            wx: 0,
-            wy: 0,
-            bgp: PaletteReg::new(),
-            obp0: PaletteReg::new(),
-            obp1: PaletteReg::new(),
-        }
-    }
-}
-
-enum PaletteColors {
-    White,
-    LightGrey,
-    DarkGrey,
-    Black,
-}
-
-/**
- * Represents a register that contains color id for palettes. This can be used 
- * for object and background palette registers
- */
-struct PaletteReg {
-    color_id_0: PaletteColors,
-    color_id_1: PaletteColors,
-    color_id_2: PaletteColors,
-    color_id_3: PaletteColors,
-}
-
-impl PaletteReg {
-    fn new() -> Self {
-        Self {
-            color_id_0: PaletteColors::White,
-            color_id_1: PaletteColors::LightGrey,
-            color_id_2: PaletteColors::DarkGrey,
-            color_id_3: PaletteColors::Black,
-        }
-    }
-}
 
 /**
  * Represents the pixel fetcher in the gameboy. It'll house all the things 

@@ -1,4 +1,4 @@
-use crate::binary_utils;
+use crate::gameboy::binary_utils;
 
 enum ClockSpeed {
     NormalSpeed,

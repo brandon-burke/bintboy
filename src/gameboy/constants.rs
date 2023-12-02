@@ -59,3 +59,6 @@ pub const JOYPAD_P1_REG: u16 = 0xFF00;
 
 pub const SERIAL_SB_REG: u16 = 0xFF01;
 pub const SERIAL_SC_REG: u16 = 0xFF02;
+
+pub const MACHINE_CYCLE: u8 = 4;
+pub const PREFIX_OPCODE: u8 = 0xCB;

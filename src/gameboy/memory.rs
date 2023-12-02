@@ -1,10 +1,8 @@
-
-
 use crate::gameboy::timer::Timer;
 use crate::gameboy::joypad::Joypad;
 use crate::gameboy::serial_transfer::SerialTransfer;
 use crate::gameboy::dma::Dma;
-use crate::gameboy::ppu::{ Ppu, PpuMode };
+use crate::gameboy::ppu::{ Ppu, enums::PpuMode };
 use crate::gameboy::interrupt_handler::InterruptHandler;
 use crate::gameboy::constants::*;
 
@@ -73,7 +71,7 @@ impl Memory {
                 panic!("I don't think we should be accessing echo memory");
             }
             OAM_START ..= OAM_END => {
-                if self.ppu.state != PpuState::OamScan && self.ppu.state != PpuState::DrawingPixels {
+                if self.ppu.current_mode() != PpuMode::OamScan && self.ppu.current_mode() != PpuMode::DrawingPixels {
                     self.ppu.read_oam(address)
                 } else {
                     return 0xFF;

@@ -1,6 +1,6 @@
 use core::panic;
 
-use crate::binary_utils;
+use crate::gameboy::binary_utils;
 
 const MACHINE_CYCLE: u8 = 4;
 

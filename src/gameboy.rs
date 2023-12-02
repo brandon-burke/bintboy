@@ -5,7 +5,10 @@ mod timer;
 mod serial_transfer;
 mod joypad;
 mod dma;
-
+mod interrupt_handler;
+mod opcodes;
+mod binary_utils;
+mod constants;
 
 use crate::gameboy::cpu::{Cpu, cpu_state};
 use crate::gameboy::memory::Memory;

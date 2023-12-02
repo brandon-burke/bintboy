@@ -1,14 +1,12 @@
 pub mod cpu_state;
 
 use core::panic;
-use crate::interrupt_handler::{self, Interrupt};
+use crate::gameboy::interrupt_handler::{self, Interrupt};
 use crate::gameboy::Memory;
-use crate::opcodes::{OPCODE_MACHINE_CYCLES, PREFIX_OPCODE_MACHINE_CYCLES};
-use crate::binary_utils::{self, split_16bit_num, build_16bit_num};
+use crate::gameboy::opcodes::{OPCODE_MACHINE_CYCLES, PREFIX_OPCODE_MACHINE_CYCLES};
+use crate::gameboy::binary_utils::{self, split_16bit_num, build_16bit_num};
 use self::cpu_state::{CpuState, Status};
-
-const MACHINE_CYCLE: u8 = 4;
-const PREFIX_OPCODE: u8 = 0xCB;
+use crate::gameboy::constants::{MACHINE_CYCLE, PREFIX_OPCODE};
 
 #[derive(Debug)]
 pub struct Cpu {
