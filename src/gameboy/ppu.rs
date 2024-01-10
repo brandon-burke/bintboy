@@ -63,8 +63,8 @@ impl Ppu {
 
     /**
      * Returns whether the sprite is visible in the current scanline.
-     * This will return false for sprites that overlap the current scanline, 
-     * but their x position (0 or >168) makes them not visible
+     * This will return false for sprites w/ x position (0 or > 168), even if 
+     * they overlap the current scanline
      */
     fn is_sprite_visible_in_scanline(&self, sprite: &Sprite) -> bool {
         let current_scanline = self.ppu_registers.ly + 16;
@@ -87,40 +87,75 @@ impl Ppu {
         return self.ppu_registers.stat.ppu_mode;
     }
 
+    /**
+     * Since we have structs that make accessing certain aspects of the tile 
+     * easier we have to do all this conversion to get the tile we need. May 
+     * need to change back to using raw arrays for bare metal implementation
+     */
     pub fn read_tile_data_0(&self, address: u16) -> u8 {
-        let tile_idx = (address - TILE_DATA_0_START) / 16;
-        let byte_idx = (address - TILE_DATA_0_START) - (tile_idx * 16);
-        return self.tile_data_0[tile_idx as usize].pixel_rows[byte_idx as usize];
+        let tile_idx = (address - TILE_DATA_0_START) / 16;                  //Gives you a value between 0 and 127 to index for a tile
+        let byte_idx = (address - TILE_DATA_0_START) - (tile_idx * 16);     //Gives you a value between 0 and 15 to find what byte of the tile you're looking at
+        let tile_row_idx = byte_idx / 2;                                    //Gives a me a value  0 - 7 which will help tell you the row of the tile you'll need
+
+        return match byte_idx % 2 {
+            0 => self.tile_data_0[tile_idx as usize].pixel_rows[tile_row_idx as usize].lower_bits,
+            _ => self.tile_data_0[tile_idx as usize].pixel_rows[tile_row_idx as usize].upper_bits,
+        }
     }
 
     pub fn write_tile_data_0(&mut self, address: u16, value: u8) {
         let tile_idx = (address - TILE_DATA_0_START) / 16;
         let byte_idx = (address - TILE_DATA_0_START) - (tile_idx * 16);
-        self.tile_data_0[tile_idx as usize].pixel_rows[byte_idx as usize] = value;
+        let tile_row_idx = byte_idx / 2;
+
+        match byte_idx % 2 {
+            0 => self.tile_data_0[tile_idx as usize].pixel_rows[tile_row_idx as usize].lower_bits = value,
+            _ => self.tile_data_0[tile_idx as usize].pixel_rows[tile_row_idx as usize].upper_bits = value,
+        }
     }
 
     pub fn read_tile_data_1(&self, address: u16) -> u8 {
-        let tile_idx = (address - TILE_DATA_1_START) / 16;
-        let byte_idx = (address - TILE_DATA_1_START) - (tile_idx * 16);
-        return self.tile_data_1[tile_idx as usize].pixel_rows[byte_idx as usize];
+        let tile_idx = (address - TILE_DATA_1_START) / 16;                  //Gives you a value between 0 and 127 to index for a tile
+        let byte_idx = (address - TILE_DATA_1_START) - (tile_idx * 16);     //Gives you a value between 0 and 15 to find what byte of the tile you're looking at
+        let tile_row_idx = byte_idx / 2;                                    //Gives a me a value  0 - 7 which will help tell you the row of the tile you'll need
+
+        return match byte_idx % 2 {
+            0 => self.tile_data_1[tile_idx as usize].pixel_rows[tile_row_idx as usize].lower_bits,
+            _ => self.tile_data_1[tile_idx as usize].pixel_rows[tile_row_idx as usize].upper_bits,
+        }
     }
 
     pub fn write_tile_data_1(&mut self, address: u16, value: u8) {
         let tile_idx = (address - TILE_DATA_1_START) / 16;
         let byte_idx = (address - TILE_DATA_1_START) - (tile_idx * 16);
-        self.tile_data_1[tile_idx as usize].pixel_rows[byte_idx as usize] = value;
+        let tile_row_idx = byte_idx / 2;
+
+        match byte_idx % 2 {
+            0 => self.tile_data_1[tile_idx as usize].pixel_rows[tile_row_idx as usize].lower_bits = value,
+            _ => self.tile_data_1[tile_idx as usize].pixel_rows[tile_row_idx as usize].upper_bits = value,
+        }
     }
 
     pub fn read_tile_data_2(&self, address: u16) -> u8 {
-        let tile_idx = (address - TILE_DATA_2_START) / 16;
-        let byte_idx = (address - TILE_DATA_2_START) - (tile_idx * 16);
-        return self.tile_data_2[tile_idx as usize].pixel_rows[byte_idx as usize];
+        let tile_idx = (address - TILE_DATA_2_START) / 16;                  //Gives you a value between 0 and 127 to index for a tile
+        let byte_idx = (address - TILE_DATA_2_START) - (tile_idx * 16);     //Gives you a value between 0 and 15 to find what byte of the tile you're looking at
+        let tile_row_idx = byte_idx / 2;                                    //Gives a me a value  0 - 7 which will help tell you the row of the tile you'll need
+
+        return match byte_idx % 2 {
+            0 => self.tile_data_2[tile_idx as usize].pixel_rows[tile_row_idx as usize].lower_bits,
+            _ => self.tile_data_2[tile_idx as usize].pixel_rows[tile_row_idx as usize].upper_bits,
+        }
     }
 
     pub fn write_tile_data_2(&mut self, address: u16, value: u8) {
         let tile_idx = (address - TILE_DATA_2_START) / 16;
         let byte_idx = (address - TILE_DATA_2_START) - (tile_idx * 16);
-        self.tile_data_2[tile_idx as usize].pixel_rows[byte_idx as usize] = value;
+        let tile_row_idx = byte_idx / 2;
+
+        match byte_idx % 2 {
+            0 => self.tile_data_2[tile_idx as usize].pixel_rows[tile_row_idx as usize].lower_bits = value,
+            _ => self.tile_data_2[tile_idx as usize].pixel_rows[tile_row_idx as usize].upper_bits = value,
+        }
     }
 
     pub fn read_tile_map_0(&self, address: u16) -> u8 {

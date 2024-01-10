@@ -3,7 +3,7 @@ use crate::gameboy::ppu::enums::{SpritePriority, Orientation, SpritePalette, Vra
 /*
     Represents a 8x8 square of pixels. Here we have an array of PixelRows
     where each PixelRow in the array represents the data of a row of pixels
-    in the Tile
+    in the Tile. arr[0] being the first row and so on
  */
 #[derive(Clone, Copy)]
 pub struct Tile {
@@ -18,11 +18,14 @@ impl Tile {
     }
 }
 
-/* Represents the data to create a row of pixels. */
+/**
+ * Represents the data to create a row of pixels. In memory the lower bits
+ * come first.
+ */
 #[derive(Clone, Copy)]
 struct TileRow {
-    lower_bits: u8,
-    upper_bits: u8,
+    pub lower_bits: u8, //lsb
+    pub upper_bits: u8, //msb
 }
 
 impl TileRow {
