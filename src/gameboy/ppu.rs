@@ -175,14 +175,14 @@ impl Ppu {
     }
 
     pub fn read_oam(&self, address: u16) -> u8 {
-        let sprite_idx = (address - OAM_START) / 4;
-        let byte_idx = (address - OAM_START) - (sprite_idx * 4);
+        let sprite_idx = (address - OAM_START) / 4;                 //Number between 0 and 39 tells the index of the sprite
+        let byte_idx = (address - OAM_START) - (sprite_idx * 4);    //Number between 0 and 3, tells what byte/section of the sprite
 
         match byte_idx {
             0 => self.oam[sprite_idx as usize].y_pos,
             1 => self.oam[sprite_idx as usize].x_pos,
             2 => self.oam[sprite_idx as usize].tile_index,
-            3 => self.oam[sprite_idx as usize].attribute_flags,
+            3 => self.oam[sprite_idx as usize].attribute_flags_raw(),   //Note this will always make the first 3 bits 0
             _ => panic!("While reading OAM ram it looks like your idx was more than 3")
         }
     }
@@ -194,77 +194,77 @@ impl Ppu {
             0 => self.oam[sprite_idx as usize].y_pos = value,
             1 => self.oam[sprite_idx as usize].x_pos = value,
             2 => self.oam[sprite_idx as usize].tile_index = value,
-            3 => self.oam[sprite_idx as usize].attribute_flags = value,
+            3 => self.oam[sprite_idx as usize].write_attribute_flags(value),
             _ => panic!("While writing OAM ram it looks like your idx was more than 3")
         }
     }
 
     pub fn read_bgp_reg(&self) -> u8 {
-        return self.ppu_registers.bgp;
+        return self.ppu_registers.bgp.read_reg_raw();
     }
 
     pub fn write_bgp_reg(&mut self, value: u8) {
-        self.ppu_registers.bgp = value;
+        self.ppu_registers.bgp.write_reg_from_u8(value);
     }
 
     pub fn read_obp0_reg(&self) -> u8 {
-        return self.ppu_registers.obp0_reg;
+        return self.ppu_registers.obp0.read_reg_raw();
     }
 
     pub fn write_obp0_reg(&mut self, value: u8) {
-        self.ppu_registers.obp0_reg = value;
+        self.ppu_registers.obp0.write_reg_from_u8(value);
     }
 
     pub fn read_obp1_reg(&self) -> u8 {
-        return self.ppu_registers.obp1_reg;
+        return self.ppu_registers.obp1.read_reg_raw();
     }
 
     pub fn write_obp1_reg(&mut self, value: u8) {
-        self.ppu_registers.obp1_reg = value;
+        self.ppu_registers.obp1.write_reg_from_u8(value);
     }
 
     pub fn read_scy_reg(&self) -> u8 {
-        return self.ppu_registers.scy_reg;
+        return self.ppu_registers.scy;
     }
 
     pub fn write_scy_reg(&mut self, value: u8) {
-        self.ppu_registers.scy_reg = value;
+        self.ppu_registers.scy = value;
     }
 
     pub fn read_scx_reg(&self) -> u8 {
-        return self.ppu_registers.scx_reg;
+        return self.ppu_registers.scx;
     }
 
     pub fn write_scx_reg(&mut self, value: u8) {
-        self.ppu_registers.scx_reg = value;
+        self.ppu_registers.scx = value;
     }
 
     pub fn read_lcdc_reg(&self) -> u8 {
-        return self.ppu_registers.lcdc_reg;
+        return self.ppu_registers.lcdc.read_reg_raw();
     }
 
     pub fn write_lcdc_reg(&mut self, value: u8) {
-        self.ppu_registers.lcdc_reg = value;
+        self.ppu_registers.lcdc.write_reg_raw(value);
     }
 
     pub fn read_ly_reg(&self) -> u8 {
-        return self.ppu_registers.ly_reg;
+        return self.ppu_registers.ly;
     }
 
     pub fn write_ly_reg(&mut self, value: u8) {
-        self.ppu_registers.ly_reg = value;
+        self.ppu_registers.ly = value;
     }
 
     pub fn read_lyc_reg(&self) -> u8 {
-        return self.ppu_registers.lyc_reg;
+        return self.ppu_registers.lyc;
     }
 
     pub fn write_lyc_reg(&mut self, value: u8) {
-        self.ppu_registers.lyc_reg = value;
+        self.ppu_registers.lyc = value;
     }
 
     pub fn read_stat_reg(&self) -> u8 {
-        return self.ppu_registers.stat_reg;
+        return self.ppu_registers.stat.read_reg_raw();
     }
 
     pub fn write_stat_reg(&mut self, value: u8) {
@@ -272,19 +272,19 @@ impl Ppu {
     }
 
     pub fn read_wx_reg(&self) -> u8 {
-        return self.ppu_registers.wx_reg;
+        return self.ppu_registers.wx;
     }
 
     pub fn write_wx_reg(&mut self, value: u8) {
-        self.ppu_registers.wx_reg = value;
+        self.ppu_registers.wx = value;
     }
 
     pub fn read_wy_reg(&self) -> u8 {
-        return self.ppu_registers.wy_reg;
+        return self.ppu_registers.wy;
     }
 
     pub fn write_wy_reg(&mut self, value: u8) {
-        self.ppu_registers.wy_reg = value;
+        self.ppu_registers.wy = value;
     }
 }
 
