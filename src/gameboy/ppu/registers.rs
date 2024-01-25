@@ -224,8 +224,10 @@ impl StatReg {
         return value;
     }
 
+    /**
+     * NOTE we cannot write to the lyc==ly and ppumode bits since they are readonly
+     */
     pub fn write_reg_from_u8(&mut self, value: u8) {
-
         self.lyc_int_select = match binary_utils::get_bit(value, 6) {
             0 => State::Off,
             1 => State::On,

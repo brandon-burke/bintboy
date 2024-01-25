@@ -268,7 +268,7 @@ impl Ppu {
     }
 
     pub fn write_stat_reg(&mut self, value: u8) {
-        self.ppu_registers.stat_reg = value;
+        self.ppu_registers.stat.write_reg_from_u8(value);
     }
 
     pub fn read_wx_reg(&self) -> u8 {
