@@ -3,7 +3,7 @@ mod registers;
 mod tile_and_sprite;
 
 use self::registers::PpuRegisters;
-use self::enums::{PpuMode, SpriteSize};
+use self::enums::{PpuMode, SpriteSize, SpriteScanlineVisibility};
 use self::tile_and_sprite::*;
 use crate::gameboy::constants::*;
 pub struct Ppu {
@@ -42,12 +42,20 @@ impl Ppu {
                 //We're mimicking that it takes 80 clks to do this
                 if self.clk_ticks == 80 {
                     self.visible_sprites.clear();   //Making sure we don't keep sprites from the previous scanline
+                    let mut num_of_sprite_in_scanline = 0;
                     for sprite in self.oam {
-                        if self.is_sprite_visible_in_scanline(&sprite) {
-                            self.visible_sprites.push(sprite);
+
+                        //Checking if the sprite is in the scanline and if its visible
+                        match self.is_sprite_in_scanline(&sprite) {
+                            SpriteScanlineVisibility::NotInScanLine => (),
+                            SpriteScanlineVisibility::NotVisible => num_of_sprite_in_scanline += 1,
+                            SpriteScanlineVisibility::Visible => {
+                                num_of_sprite_in_scanline += 1;
+                                self.visible_sprites.push(sprite);
+                            },
                         }
-    
-                        if self.visible_sprites.len() == 10 {
+                        
+                        if num_of_sprite_in_scanline == 10 {
                             break;
                         }
                     }
@@ -66,21 +74,21 @@ impl Ppu {
      * This will return false for sprites w/ x position (0 or > 168), even if 
      * they overlap the current scanline
      */
-    fn is_sprite_visible_in_scanline(&self, sprite: &Sprite) -> bool {
+    fn is_sprite_in_scanline(&self, sprite: &Sprite) -> SpriteScanlineVisibility {
         let current_scanline = self.ppu_registers.ly + 16;
         let sprite_y_pos_end = match self.ppu_registers.sprite_size() {
             SpriteSize::_8x8 => sprite.y_pos + 8,
             SpriteSize::_8x16 => sprite.y_pos + 16,
         };
 
-        //Checking is the sprite is visible
-        if current_scanline >= sprite.y_pos && 
-            current_scanline < sprite_y_pos_end &&
-            sprite.x_pos != 0 &&
-            sprite.x_pos < 168 {
-            return true;
+        //Checking is the sprite is in the scanline and if its also visible
+        if current_scanline >= sprite.y_pos && current_scanline < sprite_y_pos_end {
+            if sprite.x_pos != 0 && sprite.x_pos < 168 {
+                return SpriteScanlineVisibility::NotVisible;
+            }
+            return SpriteScanlineVisibility::Visible;
         }
-        return false;
+        return SpriteScanlineVisibility::NotInScanLine;
     }
 
     pub fn current_mode(&self) -> PpuMode {

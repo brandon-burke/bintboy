@@ -68,3 +68,9 @@ pub enum PaletteColors {
     DarkGrey,
     Black,
 }
+
+pub enum SpriteScanlineVisibility {
+    NotInScanLine,
+    NotVisible,
+    Visible,
+}

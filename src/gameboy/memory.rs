@@ -116,7 +116,7 @@ impl Memory {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize] = data_to_write,
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize] = data_to_write,
             VRAM_START ..= VRAM_END => {
-                if self.ppu.state != PpuState::DrawingPixels  {
+                if self.ppu.current_mode() != PpuMode::DrawingPixels  {
                     match address {
                         TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.write_tile_data_0(address, data_to_write),
                         TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.write_tile_data_1(address, data_to_write),
