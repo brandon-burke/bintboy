@@ -36,6 +36,8 @@ impl Ppu {
             clk_ticks: 0,
             visible_sprites: Vec::with_capacity(10),
             pixel_fetcher: PixelFetcher::new(),
+            sprite_fifo: [Pixel::new(); 16],
+            bg_window_fifo: [Pixel::new(); 16],
         }
     }
 
