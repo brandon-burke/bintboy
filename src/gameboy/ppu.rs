@@ -1,7 +1,9 @@
 pub mod enums;
 mod registers;
 mod tile_and_sprite;
+mod pixel_fetcher;
 
+use self::pixel_fetcher::{Pixel, PixelFetcher};
 use self::registers::PpuRegisters;
 use self::enums::{PpuMode, SpriteSize, SpriteScanlineVisibility};
 use self::tile_and_sprite::*;
@@ -16,6 +18,9 @@ pub struct Ppu {
     ppu_registers: PpuRegisters,    //Houses all ppu registers
     clk_ticks: u16,                 //How many cpu ticks have gone by
     visible_sprites: Vec<Sprite>,   //Visible Sprites on current scanline
+    pixel_fetcher: PixelFetcher,
+    sprite_fifo: [Pixel; 16],
+    bg_window_fifo: [Pixel; 16],
 }
 
 impl Ppu {
@@ -30,6 +35,7 @@ impl Ppu {
             ppu_registers: PpuRegisters::new(),
             clk_ticks: 0,
             visible_sprites: Vec::with_capacity(10),
+            pixel_fetcher: PixelFetcher::new(),
         }
     }
 
@@ -63,7 +69,9 @@ impl Ppu {
                     self.ppu_registers.set_mode(PpuMode::DrawingPixels);
                 }
             },
-            PpuMode::DrawingPixels => todo!(),
+            PpuMode::DrawingPixels => {
+
+            },
             PpuMode::Hblank => todo!(),
             PpuMode::Vblank => todo!(),
         }
@@ -83,7 +91,7 @@ impl Ppu {
 
         //Checking is the sprite is in the scanline and if its also visible
         if current_scanline >= sprite.y_pos && current_scanline < sprite_y_pos_end {
-            if sprite.x_pos != 0 && sprite.x_pos < 168 {
+            if sprite.x_pos == 0 || sprite.x_pos >= 168 {
                 return SpriteScanlineVisibility::NotVisible;
             }
             return SpriteScanlineVisibility::Visible;
@@ -296,12 +304,4 @@ impl Ppu {
     }
 }
 
-
-/**
- * Represents the pixel fetcher in the gameboy. It'll house all the things 
- * necessary to fetch sprite, bg, and window pixels
- */
-struct PixelFetcher {
-
-}
 

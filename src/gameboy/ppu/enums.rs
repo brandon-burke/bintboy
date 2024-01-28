@@ -62,11 +62,12 @@ pub enum PpuMode {
 }
 
 
+#[derive(Clone, Copy)]
 pub enum PaletteColors {
-    White,
-    LightGrey,
-    DarkGrey,
-    Black,
+    White,      //0
+    LightGrey,  //1
+    DarkGrey,   //2
+    Black,      //3
 }
 
 pub enum SpriteScanlineVisibility {
