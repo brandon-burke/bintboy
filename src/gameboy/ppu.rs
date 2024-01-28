@@ -19,8 +19,8 @@ pub struct Ppu {
     clk_ticks: u16,                 //How many cpu ticks have gone by
     visible_sprites: Vec<Sprite>,   //Visible Sprites on current scanline
     pixel_fetcher: PixelFetcher,
-    sprite_fifo: [Pixel; 16],
-    bg_window_fifo: [Pixel; 16],
+    sprite_fifo: Vec<Pixel>,
+    bg_window_fifo: Vec<Pixel>,
 }
 
 impl Ppu {
@@ -36,8 +36,8 @@ impl Ppu {
             clk_ticks: 0,
             visible_sprites: Vec::with_capacity(10),
             pixel_fetcher: PixelFetcher::new(),
-            sprite_fifo: [Pixel::new(); 16],
-            bg_window_fifo: [Pixel::new(); 16],
+            sprite_fifo: Vec::with_capacity(16),
+            bg_window_fifo: Vec::with_capacity(16),
         }
     }
 
@@ -72,6 +72,20 @@ impl Ppu {
                 }
             },
             PpuMode::DrawingPixels => {
+                //Set inital values when starting a draw
+                if self.clk_ticks == 1 {
+                    self.sprite_fifo.clear();
+                    self.bg_window_fifo.clear();
+                }
+
+                //Fetch more tiles if the fifo is half or less full
+                if self.bg_window_fifo.len() <= 8 {
+                    //Fetch a tile
+                    //
+                }
+
+
+
 
             },
             PpuMode::Hblank => todo!(),
