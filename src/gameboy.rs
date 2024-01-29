@@ -30,7 +30,7 @@ impl Gameboy {
      * This is the starting point for the gameboy. You just need to give it a 
      * rom file for it to run
      */
-    pub fn run(&self, rom_0: [u8; 0x4000], rom_1: [u8; 0x4000]) {
+    pub fn run(&mut self, rom_0: [u8; 0x4000], rom_1: [u8; 0x4000]) {
         //Loading rom into memory. Note we're probably going to need to add some
         //Logic to load roms with higher capacities because this just does a 32k
         self.memory.load_rom(rom_0, rom_1);

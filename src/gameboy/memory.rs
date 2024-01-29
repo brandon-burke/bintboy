@@ -107,7 +107,6 @@ impl Memory {
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize],
             INTERRUPT_ENABLE_START => self.interrupt_handler.read_ie_reg(),
-            _ => panic!("Did not account for reading of address {}", address),
         }
     }
 
@@ -164,7 +163,6 @@ impl Memory {
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize] = data_to_write,
             INTERRUPT_ENABLE_START => self.interrupt_handler.write_ie_reg(data_to_write),
-            _ => panic!("Did not account for writing of address {}", address),
         }
     }
 
@@ -183,19 +181,19 @@ impl Memory {
         }
     }
 
-    pub fn gpu_cycle(&mut self) {
-        self.ppu.cycle();
+    // pub fn gpu_cycle(&mut self) {
+    //     self.ppu.cycle();
 
-        if self.ppu.vblank_interrupt_requested {
-            self.interrupt_handler.if_reg |= 0x1;
-            self.ppu.vblank_interrupt_requested = false;
-        }
+    //     if self.ppu.vblank_interrupt_requested {
+    //         self.interrupt_handler.if_reg |= 0x1;
+    //         self.ppu.vblank_interrupt_requested = false;
+    //     }
 
-        if self.ppu.stat_interrupt_requested {
-            self.interrupt_handler.if_reg |= 0x2;
-            self.ppu.stat_interrupt_requested = false;
-        }
-    }
+    //     if self.ppu.stat_interrupt_requested {
+    //         self.interrupt_handler.if_reg |= 0x2;
+    //         self.ppu.stat_interrupt_requested = false;
+    //     }
+    // }
 
     pub fn timer_cycle(&mut self) {
         self.timer.cycle();

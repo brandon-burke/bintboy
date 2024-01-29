@@ -24,7 +24,7 @@ impl Tile {
  * come first.
  */
 #[derive(Clone, Copy)]
-struct TileRow {
+pub struct TileRow {
     pub lower_bits: u8, //lsb
     pub upper_bits: u8, //msb
 }

@@ -48,12 +48,13 @@ pub enum TileDataArea {
     _8000_8FFF,
 }
 
+#[derive(Clone, Copy)]
 pub enum SpriteSize {
     _8x8,
     _8x16,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum PpuMode {
     OamScan,        //Mode 2
     DrawingPixels,  //Mode 3

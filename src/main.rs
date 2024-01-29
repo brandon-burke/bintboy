@@ -12,7 +12,7 @@ use crate::gameboy::Gameboy;
 fn main() {
     let args = env::args().collect::<Vec<String>>();
     let (rom_file_0, rom_file_1) = create_rom_file(&args[1]);
-    let gameboy = Gameboy::new();
+    let mut gameboy = Gameboy::new();
 
     gameboy.run(rom_file_0, rom_file_1);
 }

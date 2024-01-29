@@ -12,6 +12,7 @@ pub struct PpuRegisters {
     pub bgp: PaletteReg,    //$FF47 - Background palette data - Non-CGB Mode only
     pub obp0: PaletteReg,   //$FF48 - Object palette 0 data - Non-CGB Mode only
     pub obp1: PaletteReg,   //$FF49 - Object palette 1 data - Non-CGB Mode only
+    
 }
 
 impl PpuRegisters {
@@ -41,7 +42,7 @@ impl PpuRegisters {
 }
 
 /* Represents the LCD Control register (LCDC) */
-struct LcdcReg {
+pub struct LcdcReg {
     lcd_ppu_enable: State,
     win_tile_map_area: TileMapArea,
     win_enable: State,
@@ -163,7 +164,7 @@ impl LcdcReg {
     }
 }
 
-struct StatReg {
+pub struct StatReg {
     pub unused_bit_7: u8,
     pub lyc_int_select: State,
     pub mode_2_int_select: State,
@@ -231,18 +232,22 @@ impl StatReg {
         self.lyc_int_select = match binary_utils::get_bit(value, 6) {
             0 => State::Off,
             1 => State::On,
+            _ => panic!("suppose to be either 0 or 1"),
         };
         self.mode_2_int_select = match binary_utils::get_bit(value, 5) {
             0 => State::Off,
             1 => State::On,
+            _ => panic!("suppose to be either 0 or 1"),
         };
         self.mode_1_int_select = match binary_utils::get_bit(value, 4) {
             0 => State::Off,
             1 => State::On,
+            _ => panic!("suppose to be either 0 or 1"),
         };
         self.mode_0_int_select = match binary_utils::get_bit(value, 3) {
             0 => State::Off,
             1 => State::On,
+            _ => panic!("suppose to be either 0 or 1"),
         };
     }
 }
@@ -251,7 +256,7 @@ impl StatReg {
  * Represents a register that contains color id for palettes. This can be used 
  * for object and background palette registers
  */
-struct PaletteReg {
+pub struct PaletteReg {
     color_id_0: PaletteColors,
     color_id_1: PaletteColors,
     color_id_2: PaletteColors,
