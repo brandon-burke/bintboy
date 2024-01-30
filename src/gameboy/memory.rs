@@ -181,19 +181,19 @@ impl Memory {
         }
     }
 
-    // pub fn gpu_cycle(&mut self) {
-    //     self.ppu.cycle();
+    pub fn gpu_cycle(&mut self) {
+        self.ppu.cycle();
 
-    //     if self.ppu.vblank_interrupt_requested {
-    //         self.interrupt_handler.if_reg |= 0x1;
-    //         self.ppu.vblank_interrupt_requested = false;
-    //     }
+        // if self.ppu.vblank_interrupt_requested {
+        //     self.interrupt_handler.if_reg |= 0x1;
+        //     self.ppu.vblank_interrupt_requested = false;
+        // }
 
-    //     if self.ppu.stat_interrupt_requested {
-    //         self.interrupt_handler.if_reg |= 0x2;
-    //         self.ppu.stat_interrupt_requested = false;
-    //     }
-    // }
+        // if self.ppu.stat_interrupt_requested {
+        //     self.interrupt_handler.if_reg |= 0x2;
+        //     self.ppu.stat_interrupt_requested = false;
+        // }
+    }
 
     pub fn timer_cycle(&mut self) {
         self.timer.cycle();

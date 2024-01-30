@@ -76,12 +76,14 @@ impl Ppu {
                 if self.clk_ticks == 1 {
                     self.sprite_fifo.clear();
                     self.bg_window_fifo.clear();
+                    self.ppu_registers.x_scanline_coord = 0;
                 }
 
                 //Fetch more tiles if the fifo is half or less full
                 if self.bg_window_fifo.len() <= 8 {
-                    //Fetch a tile
-                    //
+                    //Function to get the tile idx
+                    self.pixel_fetcher.fetch_pixel_row(&self.ppu_registers, &self.tile_map_0, &self.tile_map_1);
+
                 }
 
 

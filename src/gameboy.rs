@@ -37,6 +37,7 @@ impl Gameboy {
 
         loop {
             self.memory.timer_cycle();
+            self.memory.gpu_cycle();
             if !self.memory.interrupt_handler.handling_isr {
                 self.cpu.cycle(&mut self.memory);
             }

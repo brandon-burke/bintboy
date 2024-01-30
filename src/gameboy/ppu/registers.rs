@@ -12,7 +12,7 @@ pub struct PpuRegisters {
     pub bgp: PaletteReg,    //$FF47 - Background palette data - Non-CGB Mode only
     pub obp0: PaletteReg,   //$FF48 - Object palette 0 data - Non-CGB Mode only
     pub obp1: PaletteReg,   //$FF49 - Object palette 1 data - Non-CGB Mode only
-    
+    pub x_scanline_coord: u8,       //NOT a register but needed
 }
 
 impl PpuRegisters {
@@ -29,6 +29,7 @@ impl PpuRegisters {
             bgp: PaletteReg::new(),
             obp0: PaletteReg::new(),
             obp1: PaletteReg::new(),
+            x_scanline_coord: 0,
         }
     }
 
@@ -43,14 +44,14 @@ impl PpuRegisters {
 
 /* Represents the LCD Control register (LCDC) */
 pub struct LcdcReg {
-    lcd_ppu_enable: State,
-    win_tile_map_area: TileMapArea,
-    win_enable: State,
-    bg_win_tile_data_area: TileDataArea,
-    bg_tile_map_area: TileMapArea,
-    sprite_size: SpriteSize,
-    sprite_enable: State,
-    bg_win_priority: State,
+    pub lcd_ppu_enable: State,
+    pub win_tile_map_area: TileMapArea,
+    pub win_enable: State,
+    pub bg_win_tile_data_area: TileDataArea,
+    pub bg_tile_map_area: TileMapArea,
+    pub sprite_size: SpriteSize,
+    pub sprite_enable: State,
+    pub bg_win_priority: State,
 }
 
 impl LcdcReg {

@@ -38,6 +38,7 @@ pub enum State {
     Off,
 }
 
+#[derive(PartialEq)]
 pub enum TileMapArea {
     _9800_9BFF,
     _9C00_9FFF,
