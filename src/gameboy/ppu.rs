@@ -5,7 +5,7 @@ mod pixel_fetcher;
 
 use self::pixel_fetcher::{Pixel, PixelFetcher};
 use self::registers::PpuRegisters;
-use self::enums::{PpuMode, SpriteSize, SpriteScanlineVisibility};
+use self::enums::{PpuMode, SpriteScanlineVisibility, SpriteSize, TileDataArea};
 use self::tile_and_sprite::*;
 use crate::gameboy::constants::*;
 pub struct Ppu {
@@ -81,14 +81,32 @@ impl Ppu {
 
                 //Fetch more tiles if the fifo is half or less full
                 if self.bg_window_fifo.len() <= 8 {
-                    //Function to get the tile idx
-                    self.pixel_fetcher.fetch_pixel_row(&self.ppu_registers, &self.tile_map_0, &self.tile_map_1);
+                    //Clearing fifo if were doing a transition from bg to win or vice versa
+                    if self.pixel_fetcher.bg_or_win_transition(&self.ppu_registers) {
+                        self.bg_window_fifo.clear();
+                    }
+                    //Determine the tile map
+                    let tile_map = match self.pixel_fetcher.determine_tile_map(&self.ppu_registers) {
+                        enums::TileMapArea::_9800_9BFF => &self.tile_map_0,
+                        enums::TileMapArea::_9C00_9FFF => &self.tile_map_1,
+                    };
+                    //Determine the tile_data_maps
+                    let tile_data_map = match self.ppu_registers.lcdc.bg_win_tile_data_area {
+                        TileDataArea::_8000_8FFF => (&self.tile_data_0, &self.tile_data_1),
+                        TileDataArea::_8800_97FF => (&self.tile_data_2, &self.tile_data_1),
+                    };
+                    //Get the Data
+                    let mut fetched_pixel_row = self.pixel_fetcher.fetch_pixel_row(&self.ppu_registers, tile_map, tile_data_map.0, tile_data_map.1);
 
+                    self.bg_window_fifo.append(&mut fetched_pixel_row);
                 }
 
+                //Checking if we have any sprites at the current position
+                for &sprite in &self.visible_sprites {
+                    if sprite.x_pos == self.ppu_registers.x_scanline_coord
+                }
 
-
-
+                
             },
             PpuMode::Hblank => todo!(),
             PpuMode::Vblank => todo!(),

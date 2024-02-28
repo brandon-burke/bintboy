@@ -72,6 +72,7 @@ pub enum PaletteColors {
     Black,      //3
 }
 
+
 pub enum SpriteScanlineVisibility {
     NotInScanLine,
     NotVisible,
