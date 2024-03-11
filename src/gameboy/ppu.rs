@@ -19,7 +19,7 @@ pub struct Ppu {
     clk_ticks: u16,                 //How many cpu ticks have gone by
     visible_sprites: Vec<Sprite>,   //Visible Sprites on current scanline
     pixel_fetcher: PixelFetcher,
-    sprite_fifo: Vec<Pixel>,
+    sprite_fifo: Vec<Pixel>,        //could consider this to be a vec
     bg_window_fifo: Vec<Pixel>,
 }
 
@@ -52,7 +52,7 @@ impl Ppu {
                     self.visible_sprites.clear();   //Making sure we don't keep sprites from the previous scanline
                     let mut num_of_sprite_in_scanline = 0;
                     for sprite in self.oam {
-
+                        
                         //Checking if the sprite is in the scanline and if its visible
                         match self.is_sprite_in_scanline(&sprite) {
                             SpriteScanlineVisibility::NotInScanLine => (),
@@ -69,6 +69,7 @@ impl Ppu {
                     }
                     self.clk_ticks = 0;
                     self.ppu_registers.set_mode(PpuMode::DrawingPixels);
+                    self.ppu_registers.x_scanline_coord = 0;
                 }
             },
             PpuMode::DrawingPixels => {
@@ -76,15 +77,15 @@ impl Ppu {
                 if self.clk_ticks == 1 {
                     self.sprite_fifo.clear();
                     self.bg_window_fifo.clear();
-                    self.ppu_registers.x_scanline_coord = 0;
+                }
+                
+                //Clearing fifo if were doing a transition from bg to win or vice versa
+                if self.pixel_fetcher.bg_or_win_transition(&self.ppu_registers) {
+                    self.bg_window_fifo.clear();
                 }
 
                 //Fetch more tiles if the fifo is half or less full
                 if self.bg_window_fifo.len() <= 8 {
-                    //Clearing fifo if were doing a transition from bg to win or vice versa
-                    if self.pixel_fetcher.bg_or_win_transition(&self.ppu_registers) {
-                        self.bg_window_fifo.clear();
-                    }
                     //Determine the tile map
                     let tile_map = match self.pixel_fetcher.determine_tile_map(&self.ppu_registers) {
                         enums::TileMapArea::_9800_9BFF => &self.tile_map_0,
@@ -96,20 +97,23 @@ impl Ppu {
                         TileDataArea::_8800_97FF => (&self.tile_data_2, &self.tile_data_1),
                     };
                     //Get the Data
-                    let mut fetched_pixel_row = self.pixel_fetcher.fetch_pixel_row(&self.ppu_registers, tile_map, tile_data_map.0, tile_data_map.1);
+                    let mut fetched_pixel_row = self.pixel_fetcher.fetch_pixel_row(&self.ppu_registers, 
+                                                                                    tile_map, 
+                                                                                    tile_data_map.0, 
+                                                                                    tile_data_map.1);
 
                     self.bg_window_fifo.append(&mut fetched_pixel_row);
                 }
 
-                //Checking if we have any sprites at the current position
-                for &sprite in &self.visible_sprites {
-                    if sprite.x_pos == self.ppu_registers.x_scanline_coord
-                }
+                // //Checking if we have any sprites at the current position
+                // for &sprite in &self.visible_sprites {
+                //     if sprite.x_pos == self.ppu_registers.x_scanline_coord
+                // }
 
                 
             },
-            PpuMode::Hblank => todo!(),
-            PpuMode::Vblank => todo!(),
+            PpuMode::Hblank => todo!("So really the ly register will start at 0 and well only increment it after hblank and vblank"),
+            PpuMode::Vblank => todo!("Will also have to increase the ly here but when we hit the last vblank we can set it back to 0, to set it up for the next screen draw "),
         }
     }
 
