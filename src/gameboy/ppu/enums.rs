@@ -72,9 +72,12 @@ pub enum PaletteColors {
     Black,      //3
 }
 
-
+/**
+ * Set of states that the sprite can be in depending on the 
+ * x and y position of it and where the scanline currently is
+ */
 pub enum SpriteScanlineVisibility {
-    NotInScanLine,
-    NotVisible,
-    Visible,
-}
+    NotInScanLine,  //The scanline doesn't over lap with the sprite at all
+    NotVisible,     //The scanline does overlap w/ the sprite, but its x pos makes it not visible
+    Visible,        //The scanline does overlap w/ the sprite and its x pos makes it visible
+}   

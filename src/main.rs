@@ -6,6 +6,16 @@ use std::io::Read;
 use crate::gameboy::Gameboy;
 
 /**
+ * THINGS I TOLD MYSELF WOULD BE A PROBLEM LATER BUT DIDNT LISTEN
+ * 
+ * -If the game isn't running well. Could be due to a bunch of memory copying from popping the head of Vector types
+ *      might be better to use something that doesn't have allocation penalties from popping from the head.
+ * -Not letting sprites physically draw over the window because of how I mix pixels
+ * -
+ * 
+ */
+
+/**
  * This is where the gameboy emulator starts. It takes in command line arguments
  * that specify what gameboy rom to run
  */

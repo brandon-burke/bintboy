@@ -61,7 +61,7 @@ impl Sprite {
             y_flip: Orientation::Normal,
             x_flip: Orientation::Normal,
             dmg_palette: SpritePalette::Obp0,
-            bank: VramBank::Bank0,
+            bank: VramBank::Bank0, 
             cgb_palette: SpritePalette::Obp0,
         }
     }

@@ -5,7 +5,7 @@ mod pixel_fetcher;
 
 use self::pixel_fetcher::{Pixel, PixelFetcher};
 use self::registers::PpuRegisters;
-use self::enums::{PpuMode, SpriteScanlineVisibility, SpriteSize, TileDataArea};
+use self::enums::{PpuMode, SpritePriority, SpriteScanlineVisibility, SpriteSize, TileDataArea};
 use self::tile_and_sprite::*;
 use crate::gameboy::constants::*;
 pub struct Ppu {
@@ -19,7 +19,7 @@ pub struct Ppu {
     clk_ticks: u16,                 //How many cpu ticks have gone by
     visible_sprites: Vec<Sprite>,   //Visible Sprites on current scanline
     pixel_fetcher: PixelFetcher,
-    sprite_fifo: Vec<Pixel>,        //could consider this to be a vec
+    sprite_fifo: Vec<Pixel>,        
     bg_window_fifo: Vec<Pixel>,
 }
 
@@ -36,7 +36,7 @@ impl Ppu {
             clk_ticks: 0,
             visible_sprites: Vec::with_capacity(10),
             pixel_fetcher: PixelFetcher::new(),
-            sprite_fifo: Vec::with_capacity(16),
+            sprite_fifo: Vec::with_capacity(8),
             bg_window_fifo: Vec::with_capacity(16),
         }
     }
@@ -84,8 +84,8 @@ impl Ppu {
                     self.bg_window_fifo.clear();
                 }
 
-                //Fetch more tiles if the fifo is half or less full
-                if self.bg_window_fifo.len() <= 8 {
+                //Fetch more bg/win tiles if the fifo is half or less full
+                while self.bg_window_fifo.len() <= 8 {
                     //Determine the tile map
                     let tile_map = match self.pixel_fetcher.determine_tile_map(&self.ppu_registers) {
                         enums::TileMapArea::_9800_9BFF => &self.tile_map_0,
@@ -105,15 +105,56 @@ impl Ppu {
                     self.bg_window_fifo.append(&mut fetched_pixel_row);
                 }
 
-                // //Checking if we have any sprites at the current position
-                // for &sprite in &self.visible_sprites {
-                //     if sprite.x_pos == self.ppu_registers.x_scanline_coord
-                // }
+                //Checking if we are rendering a sprite
+                if let Some(sprite) = self.visible_sprites.iter().find(|s| s.x_pos == self.ppu_registers.x_scanline_coord + 8) {
+                    let mut fetched_pixel_row = self.pixel_fetcher.fetch_sprite_pixel_row(&self.ppu_registers, 
+                                                                                &self.tile_data_0, 
+                                                                                &self.tile_data_1, 
+                                                                                sprite);
+                    self.sprite_fifo.append(&mut fetched_pixel_row);
+                } else {
+                    while self.sprite_fifo.len() < 8 {
+                        self.sprite_fifo.push(Pixel::new_translucent_pixel());
+                    }
+                }
 
-                
+                //Mixing sprite pixels with bg pixels
+                for pixel_idx in (0..8).rev() {
+                    let sprite_pixel = self.sprite_fifo.remove(pixel_idx);
+                    let bg_pixel = self.bg_window_fifo[pixel_idx];  //which may also contain a sprite pixel
+
+                    //Checking if were comparing against a bg pixel. We skip if its a sprite.
+                    if sprite_pixel.bg_priority
+                    if let None = bg_pixel.bg_priority {
+                        match sprite_pixel.bg_priority.unwrap() {
+                            SpritePriority::UnderBg => (),
+                            SpritePriority::OverBg => {
+                                self.bg_window_fifo[pixel_idx] = sprite_pixel;
+                            },
+                        }
+                    }
+                }
+
+                //Push out the next pixel from the bg/win fifo
+
+                self.ppu_registers.x_scanline_coord += 1;
             },
-            PpuMode::Hblank => todo!("So really the ly register will start at 0 and well only increment it after hblank and vblank"),
-            PpuMode::Vblank => todo!("Will also have to increase the ly here but when we hit the last vblank we can set it back to 0, to set it up for the next screen draw "),
+            PpuMode::Hblank =>  {
+                if self.clk_ticks == MAX_SCANLINE_CLK_TICKS {
+                    self.ppu_registers.set_mode(PpuMode::Vblank);
+                    self.clk_ticks = 0;
+                }
+                self.ppu_registers.ly += 1;
+            },
+            PpuMode::Vblank => {
+                if self.clk_ticks == MAX_SCANLINE_CLK_TICKS {
+                    self.ppu_registers.ly += 1;
+                    if self.ppu_registers.ly == MAX_LY_VALUE {
+                        self.ppu_registers.ly = 0;
+                        self.ppu_registers.set_mode(PpuMode::OamScan);
+                    }
+                }
+            }
         }
     }
 
