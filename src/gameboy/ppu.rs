@@ -5,7 +5,7 @@ mod pixel_fetcher;
 
 use self::pixel_fetcher::{Pixel, PixelFetcher};
 use self::registers::PpuRegisters;
-use self::enums::{PpuMode, SpritePriority, SpriteScanlineVisibility, SpriteSize, TileDataArea};
+use self::enums::{PpuMode, SpritePriority, SpriteScanlineVisibility, SpriteSize, State, TileDataArea};
 use self::tile_and_sprite::*;
 use crate::gameboy::constants::*;
 pub struct Ppu {
@@ -107,29 +107,42 @@ impl Ppu {
 
                 //Checking if we are rendering a sprite
                 if let Some(sprite) = self.visible_sprites.iter().find(|s| s.x_pos == self.ppu_registers.x_scanline_coord + 8) {
-                    let mut fetched_pixel_row = self.pixel_fetcher.fetch_sprite_pixel_row(&self.ppu_registers, 
-                                                                                &self.tile_data_0, 
-                                                                                &self.tile_data_1, 
-                                                                                sprite);
-                    self.sprite_fifo.append(&mut fetched_pixel_row);
-                } else {
+                    match self.ppu_registers.lcdc.sprite_enable {
+                        State::Off => (),
+                        State::On => {
+                            let mut fetched_pixel_row = self.pixel_fetcher.fetch_sprite_pixel_row(&self.ppu_registers, 
+                                                                                                    &self.tile_data_0, 
+                                                                                                    &self.tile_data_1, 
+                                                                                                    sprite);
+                            self.sprite_fifo.append(&mut fetched_pixel_row);
+                        },
+                    }
+                } 
+                
+                match sel{
+                    //Pushing the least priority pixels since we don't have a sprite
                     while self.sprite_fifo.len() < 8 {
-                        self.sprite_fifo.push(Pixel::new_translucent_pixel());
+                        self.sprite_fifo.push(Pixel::new_translucent_sprite_pixel());
                     }
                 }
 
                 //Mixing sprite pixels with bg pixels
                 for pixel_idx in (0..8).rev() {
                     let sprite_pixel = self.sprite_fifo.remove(pixel_idx);
-                    let bg_pixel = self.bg_window_fifo[pixel_idx];  //which may also contain a sprite pixel
+                    let pixel = self.bg_window_fifo[pixel_idx];
 
                     //Checking if were comparing against a bg pixel. We skip if its a sprite.
-                    if sprite_pixel.bg_priority
-                    if let None = bg_pixel.bg_priority {
+                    if !pixel.is_sprite {
                         match sprite_pixel.bg_priority.unwrap() {
-                            SpritePriority::UnderBg => (),
+                            SpritePriority::UnderBg => {
+                                if pixel.color_id == LOWEST_PRIORITY_BG_COLOR && sprite_pixel.color_id != TRANSPARENT {
+                                    self.bg_window_fifo[pixel_idx] = sprite_pixel;
+                                }
+                            },
                             SpritePriority::OverBg => {
-                                self.bg_window_fifo[pixel_idx] = sprite_pixel;
+                                if pixel.color_id != TRANSPARENT {
+                                    self.bg_window_fifo[pixel_idx] = sprite_pixel;
+                                }
                             },
                         }
                     }
@@ -143,8 +156,9 @@ impl Ppu {
                 if self.clk_ticks == MAX_SCANLINE_CLK_TICKS {
                     self.ppu_registers.set_mode(PpuMode::Vblank);
                     self.clk_ticks = 0;
+                    self.ppu_registers.ly += 1;
                 }
-                self.ppu_registers.ly += 1;
+                
             },
             PpuMode::Vblank => {
                 if self.clk_ticks == MAX_SCANLINE_CLK_TICKS {

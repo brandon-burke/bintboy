@@ -58,6 +58,7 @@ impl PixelFetcher {
                 color_id,
                 palette: None,
                 bg_priority: None,
+                is_sprite: false,
             };
 
             constructed_pixels.push(new_pixel);
@@ -97,6 +98,7 @@ impl PixelFetcher {
                 color_id,
                 palette: Some(sprite.dmg_palette),
                 bg_priority: Some(sprite.priority),
+                is_sprite: true,
             };
 
             constructed_pixels.push(new_pixel);
@@ -152,22 +154,19 @@ pub struct Pixel {
     pub color_id: u8,
     pub palette: Option<SpritePalette>,
     pub bg_priority: Option<SpritePriority>,
+    pub is_sprite: bool,
 }
 
 impl Pixel {
-    pub fn new() -> Self {
-        Self {
-            color_id: 0,
-            palette: None,
-            bg_priority: None,
-        }
-    }
-
-    pub fn new_translucent_pixel() -> Self {
+    /**
+     * Creating a new sprite pixel with the lowest priority
+     */
+    pub fn new_translucent_sprite_pixel() -> Self {
         Self {
             color_id: 0,
             palette: Some(SpritePalette::Obp0),
             bg_priority: Some(SpritePriority::UnderBg),
+            is_sprite: true,
         }
     }
 }
