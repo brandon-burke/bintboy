@@ -105,24 +105,21 @@ impl Ppu {
                     self.bg_window_fifo.append(&mut fetched_pixel_row);
                 }
 
-                //Checking if we are rendering a sprite
-                if let Some(sprite) = self.visible_sprites.iter().find(|s| s.x_pos == self.ppu_registers.x_scanline_coord + 8) {
-                    match self.ppu_registers.lcdc.sprite_enable {
-                        State::Off => (),
-                        State::On => {
+                //Check to see if we need to render actual sprites or fill with just transparent ones
+                match self.ppu_registers.lcdc.sprite_enable {
+                    State::Off => {
+                        while self.sprite_fifo.len() < 8 {
+                            self.sprite_fifo.push(Pixel::new_translucent_sprite_pixel());
+                        }
+                    },
+                    State::On => {
+                        if let Some(sprite) = self.visible_sprites.iter().find(|s| s.x_pos == self.ppu_registers.x_scanline_coord + 8) {
                             let mut fetched_pixel_row = self.pixel_fetcher.fetch_sprite_pixel_row(&self.ppu_registers, 
                                                                                                     &self.tile_data_0, 
                                                                                                     &self.tile_data_1, 
                                                                                                     sprite);
                             self.sprite_fifo.append(&mut fetched_pixel_row);
-                        },
-                    }
-                } 
-                
-                match sel{
-                    //Pushing the least priority pixels since we don't have a sprite
-                    while self.sprite_fifo.len() < 8 {
-                        self.sprite_fifo.push(Pixel::new_translucent_sprite_pixel());
+                        } 
                     }
                 }
 
@@ -158,12 +155,11 @@ impl Ppu {
                     self.clk_ticks = 0;
                     self.ppu_registers.ly += 1;
                 }
-                
             },
             PpuMode::Vblank => {
                 if self.clk_ticks == MAX_SCANLINE_CLK_TICKS {
                     self.ppu_registers.ly += 1;
-                    if self.ppu_registers.ly == MAX_LY_VALUE {
+                    if self.ppu_registers.ly > MAX_LY_VALUE {
                         self.ppu_registers.ly = 0;
                         self.ppu_registers.set_mode(PpuMode::OamScan);
                     }
