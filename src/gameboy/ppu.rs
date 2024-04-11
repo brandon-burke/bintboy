@@ -180,7 +180,7 @@ impl Ppu {
             SpriteSize::_8x16 => sprite.y_pos + 16,
         };
 
-        //Checking is the sprite is in the scanline and if its also visible
+        //Checking if the sprite is in the scanline and if its also visible
         if current_scanline >= sprite.y_pos && current_scanline < sprite_y_pos_end {
             if sprite.x_pos == 0 || sprite.x_pos >= 168 {
                 return SpriteScanlineVisibility::NotVisible;

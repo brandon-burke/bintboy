@@ -76,10 +76,23 @@ impl PixelFetcher {
     pub fn fetch_sprite_pixel_row(&mut self, ppu_registers: &PpuRegisters, 
         tile_data_map_0: &[Tile], tile_data_map_1: &[Tile], sprite: &Sprite) -> Vec<Pixel> {
 
+        //Checking which tile we should pick if we're rendering a 8x16 sprite
+        let sprite_tile_index = match ppu_registers.sprite_size() {
+            SpriteSize::_8x8 => sprite.tile_index,
+            SpriteSize::_8x16 => {
+                //Checking if we are using the bottom tile
+                if ((ppu_registers.ly + 16) - sprite.y_pos) > 7 {
+                    sprite.tile_index | 0x01        //Enforcing to have a lsb
+                } else {
+                    sprite.tile_index & 0xFE        //Enforcing to ignore the lsb
+                }
+            },
+        };
+    
         //Just getting the actual tile now
-        let tile = match sprite.tile_index {
-            0..=127 => tile_data_map_0[sprite.tile_index as usize],
-            128..=255 => tile_data_map_1[(sprite.tile_index - 128) as usize],
+        let tile = match sprite_tile_index {
+            0..=127 => tile_data_map_0[sprite_tile_index as usize],
+            128..=255 => tile_data_map_1[(sprite_tile_index - 128) as usize],
         };
 
         //Figuring out what row of pixels we need to get

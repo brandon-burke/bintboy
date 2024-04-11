@@ -26,18 +26,20 @@ impl Dma {
      */
     pub fn cycle(&mut self) -> Option<(u16, u8)> {
         if self.currently_transferring {
-            self.cycles_since_start += 1;
             self.cycles_before_write += 1;
-
-            //The end of a DMA transfer
-            if self.cycles_since_start == 160 {
-                self.currently_transferring = false;
-            }
             
             if self.cycles_before_write == 4 {
                 self.cycles_before_write = 0;
+
+                //Checking if were finished transferring
+                self.cycles_since_start += 1;
+                if self.cycles_since_start == 160 {
+                    self.currently_transferring = false;
+                }
+                
                 let src_address: u16 = ((self.src_address_reg as u16) << 8) + self.current_address_offset as u16;
-                return Some((src_address, self.current_address_offset)) ;   
+                self.current_address_offset += 1;
+                return Some((src_address, self.current_address_offset - 1)) ;
             }
         }
         return None;

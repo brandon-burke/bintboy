@@ -47,6 +47,8 @@ impl Memory {
     }
 
     pub fn read_byte(&self, address: u16) -> u8 {
+
+        
         match address {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize],
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize],
