@@ -151,7 +151,7 @@ impl Memory {
                     STAT_REG => self.ppu.write_stat_reg(data_to_write),
                     SCY_REG => self.ppu.write_scy_reg(data_to_write),
                     SCX_REG => self.ppu.write_scx_reg(data_to_write),
-                    LY_REG => self.ppu.write_ly_reg(data_to_write),
+                    LY_REG => (),   //This is read only you can't touch it
                     LYC_REG => self.ppu.write_lyc_reg(data_to_write),
                     BGP_REG => self.ppu.write_bgp_reg(data_to_write),
                     OBP0_REG => self.ppu.write_obp0_reg(data_to_write),

@@ -145,7 +145,20 @@ impl Ppu {
                     }
                 }
 
-                //Push out the next pixel from the bg/win fifo
+
+                //Pushing the pixel that is to be rendered
+                let pixel_to_render = self.bg_window_fifo.remove(0);
+                match self.ppu_registers.lcdc.bg_win_priority {
+                    State::On => //Since we mix before hand,
+                    State::Off => {
+                        //This means that the bg is disabled and needs to be white
+                        if !pixel_to_render.is_sprite {
+                            
+                        }
+                        //If a bg pixel then make it white
+                        //If its a sprite pixel then leave it alone
+                    },
+                }
 
                 self.ppu_registers.x_scanline_coord += 1;
             },
@@ -358,9 +371,10 @@ impl Ppu {
         return self.ppu_registers.ly;
     }
 
-    pub fn write_ly_reg(&mut self, value: u8) {
-        self.ppu_registers.ly = value;
-    }
+    //this reg is read only you can't write to it
+    // pub fn write_ly_reg(&mut self, value: u8) {
+    //     self.ppu_registers.ly = value;
+    // }
 
     pub fn read_lyc_reg(&self) -> u8 {
         return self.ppu_registers.lyc;

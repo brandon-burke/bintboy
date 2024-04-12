@@ -1,6 +1,6 @@
 use crate::gameboy::binary_utils;
 
-use super::{enums::{SpritePalette, SpritePriority, TileMapArea}, registers::PpuRegisters, Sprite, Tile};
+use super::{enums::{SpritePalette, SpritePriority, SpriteSize, TileMapArea}, registers::PpuRegisters, Sprite, Tile};
 
 /**
  * Represents the pixel fetcher in the gameboy. It'll house all the things 
@@ -73,6 +73,9 @@ impl PixelFetcher {
         return constructed_pixels;
     }
 
+    /**
+     * All this does is create a row of pixels of the sprite that we pass here.
+     */
     pub fn fetch_sprite_pixel_row(&mut self, ppu_registers: &PpuRegisters, 
         tile_data_map_0: &[Tile], tile_data_map_1: &[Tile], sprite: &Sprite) -> Vec<Pixel> {
 

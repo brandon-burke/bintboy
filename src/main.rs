@@ -11,7 +11,7 @@ use crate::gameboy::Gameboy;
  * -If the game isn't running well. Could be due to a bunch of memory copying from popping the head of Vector types
  *      might be better to use something that doesn't have allocation penalties from popping from the head.
  * -Not letting sprites physically draw over the window because of how I mix pixels
- * -
+ * -Not using the WX reg for pixel fetching, so window drawing can be wrong because of this
  * 
  */
 
