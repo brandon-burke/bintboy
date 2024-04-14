@@ -274,13 +274,23 @@ impl PaletteReg {
         }
     }
 
+    pub fn convert_colorid_to_color(&self, color_id: u8) -> PaletteColors {
+        match color_id {
+            0 => self.color_id_0,
+            1 => self.color_id_1,
+            2 => self.color_id_2,
+            3 => self.color_id_3,
+            _ => panic!("Impossible colorid")
+        }
+    }
+
     pub fn write_reg_from_u8(&mut self, value: u8) {
         self.color_id_0 = match (binary_utils::get_bit(value, 1), binary_utils::get_bit(value, 0)) {
             (0,0) => PaletteColors::White,
             (0,1) => PaletteColors::LightGrey,
             (1,0) => PaletteColors::DarkGrey,
             (1,1) => PaletteColors::Black,
-            _ => panic!("weird as bit combo"),
+            _ => panic!("weird ass bit combo"),
         };
         
         self.color_id_1 = match (binary_utils::get_bit(value, 3), binary_utils::get_bit(value, 2)) {
@@ -288,7 +298,7 @@ impl PaletteReg {
             (0,1) => PaletteColors::LightGrey,
             (1,0) => PaletteColors::DarkGrey,
             (1,1) => PaletteColors::Black,
-            _ => panic!("weird as bit combo"),
+            _ => panic!("weird ass bit combo"),
         };
 
         self.color_id_2 = match (binary_utils::get_bit(value, 5), binary_utils::get_bit(value, 4)) {
@@ -296,7 +306,7 @@ impl PaletteReg {
             (0,1) => PaletteColors::LightGrey,
             (1,0) => PaletteColors::DarkGrey,
             (1,1) => PaletteColors::Black,
-            _ => panic!("weird as bit combo"),
+            _ => panic!("weird ass bit combo"),
         };
 
         self.color_id_3 = match (binary_utils::get_bit(value, 7), binary_utils::get_bit(value, 6)) {
@@ -304,7 +314,7 @@ impl PaletteReg {
             (0,1) => PaletteColors::LightGrey,
             (1,0) => PaletteColors::DarkGrey,
             (1,1) => PaletteColors::Black,
-            _ => panic!("weird as bit combo"),
+            _ => panic!("weird ass bit combo"),
         };
     }
 

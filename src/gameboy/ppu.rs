@@ -5,7 +5,7 @@ mod pixel_fetcher;
 
 use self::pixel_fetcher::{Pixel, PixelFetcher};
 use self::registers::PpuRegisters;
-use self::enums::{PpuMode, SpritePriority, SpriteScanlineVisibility, SpriteSize, State, TileDataArea};
+use self::enums::{PaletteColors, PpuMode, SpritePriority, SpriteScanlineVisibility, SpriteSize, State, TileDataArea};
 use self::tile_and_sprite::*;
 use crate::gameboy::constants::*;
 pub struct Ppu {
@@ -148,17 +148,30 @@ impl Ppu {
 
                 //Pushing the pixel that is to be rendered
                 let pixel_to_render = self.bg_window_fifo.remove(0);
-                match self.ppu_registers.lcdc.bg_win_priority {
-                    State::On => //Since we mix before hand,
-                    State::Off => {
-                        //This means that the bg is disabled and needs to be white
+                let final_pixel_color = match self.ppu_registers.lcdc.bg_win_priority {
+                    State::On => {
                         if !pixel_to_render.is_sprite {
-                            
+                            self.ppu_registers.bgp.convert_colorid_to_color(pixel_to_render.color_id)
+                        } else {
+                            match pixel_to_render.palette.unwrap() {    //I know it should be a sprite so just unwrap it
+                                enums::SpritePalette::Obp0 => self.ppu_registers.obp0.convert_colorid_to_color(pixel_to_render.color_id),
+                                enums::SpritePalette::Obp1 => self.ppu_registers.obp1.convert_colorid_to_color(pixel_to_render.color_id),
+                                _ => panic!("You haven't implemented CGB palette yet!")
+                            }
                         }
-                        //If a bg pixel then make it white
-                        //If its a sprite pixel then leave it alone
                     },
-                }
+                    State::Off => {
+                        if !pixel_to_render.is_sprite {
+                            PaletteColors::White
+                        } else {
+                            match pixel_to_render.palette.unwrap() {    //I know it should be a sprite so just unwrap it
+                                enums::SpritePalette::Obp0 => self.ppu_registers.obp0.convert_colorid_to_color(pixel_to_render.color_id),
+                                enums::SpritePalette::Obp1 => self.ppu_registers.obp1.convert_colorid_to_color(pixel_to_render.color_id),
+                                _ => panic!("You haven't implemented CGB palette yet!")
+                            }
+                        }
+                    },
+                };
 
                 self.ppu_registers.x_scanline_coord += 1;
             },

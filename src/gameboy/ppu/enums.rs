@@ -32,13 +32,13 @@ pub enum VramBank {
 }
 
 
-
+#[derive(PartialEq)]
 pub enum State {
     On,
     Off,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum TileMapArea {
     _9800_9BFF,
     _9C00_9FFF,

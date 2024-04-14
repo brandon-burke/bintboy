@@ -56,4 +56,19 @@ Features to add to ppu:
         -Its because were setting up the bg fetcher for the window
     -objects 
         -each object drawn can incur a 6-11 dot penalty (even for partial sprites)
-        
+
+-CONDITIONS ONLY CHECKED ENTERING STOP Mode 
+    -Leaving STOP mode ppu access to vram is restored
+    -Implement weird times during ppu operation where read access is blocked
+        -If it is blocked it sends back 0xFF
+        -LCD Turning off (is this a lcdc bit 7?)
+        -Switch from mode 3 to 0
+    -Implement weird times during ppu operation where read access is blocked restored
+        -At scanline 0
+        -When searching OAM and index 37 is reached
+        -After switching from mode 2 to mode 3
+
+-Implement when WX == 0 && SCX & 7 > 0
+    -Mode 3 is shortened by 1 dot
+
+-Maybe Implement Object canceling

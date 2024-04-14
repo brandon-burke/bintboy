@@ -1,6 +1,6 @@
 use crate::gameboy::binary_utils;
 
-use super::{enums::{SpritePalette, SpritePriority, SpriteSize, TileMapArea}, registers::PpuRegisters, Sprite, Tile};
+use super::{enums::{SpritePalette, SpritePriority, SpriteSize, State, TileMapArea}, registers::PpuRegisters, Sprite, Tile};
 
 /**
  * Represents the pixel fetcher in the gameboy. It'll house all the things 
@@ -124,10 +124,17 @@ impl PixelFetcher {
     }
 
     /**
-     * Returns the enum of the tile map that we are using
+     * Returns the enum of the tile map that we are using. This is also influenced
+     * by the win enable bit. If the window is turned off we just default to the 
+     * bg tile map.
      */
     pub fn determine_tile_map(&self, ppu_registers: &PpuRegisters) -> TileMapArea {
         let lcdc_reg = &ppu_registers.lcdc;
+
+        //If the window is disabled just use the bg's tile map
+        if ppu_registers.lcdc.win_enable == State::Off {
+            return lcdc_reg.bg_tile_map_area;
+        }
 
         if (lcdc_reg.bg_tile_map_area == TileMapArea::_9C00_9FFF && !self.is_inside_window(ppu_registers)) 
             || (lcdc_reg.win_tile_map_area == TileMapArea::_9C00_9FFF && self.is_inside_window(ppu_registers)) {
@@ -138,17 +145,23 @@ impl PixelFetcher {
 
     /**
      * Returns true if we are transitioning from drawing the bg to window or 
-     * vice versa.
+     * vice versa. This also is influenced by the window enable bit in the lcdc
+     * register.
      */
     pub fn bg_or_win_transition(&self, ppu_registers: &PpuRegisters) -> bool {
-        //Checking if we are rendering the window
-        if self.is_inside_window(ppu_registers) && !self.drawing_window {
+        //Checking bg to win 
+        if ppu_registers.lcdc.win_enable == State::On && self.is_inside_window(ppu_registers) && !self.drawing_window {
             return true;
         }
-
+        //Checking win to bg
         if !self.is_inside_window(ppu_registers) && self.drawing_window {
             return true;
         }
+        //Checking win to win. We want to influence a change to bg b/c the window is not enabled
+        if ppu_registers.lcdc.win_enable == State::Off && self.is_inside_window(ppu_registers) && self.drawing_window {
+            return true;
+        }
+
         return false;
     }
 
