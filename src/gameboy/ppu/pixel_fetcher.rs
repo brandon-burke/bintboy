@@ -1,6 +1,6 @@
 use crate::gameboy::binary_utils;
 
-use super::{enums::{SpritePalette, SpritePriority, SpriteSize, State, TileMapArea}, registers::PpuRegisters, Sprite, Tile};
+use super::{enums::{Orientation, SpritePalette, SpritePriority, SpriteSize, State, TileMapArea}, registers::PpuRegisters, Sprite, Tile};
 
 /**
  * Represents the pixel fetcher in the gameboy. It'll house all the things 
@@ -84,7 +84,7 @@ impl PixelFetcher {
             SpriteSize::_8x8 => sprite.tile_index,
             SpriteSize::_8x16 => {
                 //Checking if we are using the bottom tile
-                if ((ppu_registers.ly + 16) - sprite.y_pos) > 7 {
+                if ((ppu_registers.ly + 16) - sprite.y_pos) > 7 && sprite.y_flip == Orientation::Normal {   //The 7 is b/c the tile rows go from 0-7 not 1-8
                     sprite.tile_index | 0x01        //Enforcing to have a lsb
                 } else {
                     sprite.tile_index & 0xFE        //Enforcing to ignore the lsb
@@ -98,8 +98,13 @@ impl PixelFetcher {
             128..=255 => tile_data_map_1[(sprite_tile_index - 128) as usize],
         };
 
-        //Figuring out what row of pixels we need to get
-        let row_idx = ppu_registers.ly - ((ppu_registers.ly / 8) * 8);
+        //Figuring out what row of pixels we need to get. Accounting for flipping vertically
+        let row_idx = match sprite.y_flip {
+            Orientation::Normal => ppu_registers.ly - ((ppu_registers.ly / 8) * 8),
+            Orientation::Mirrored => {
+                tile.pixel_rows.len() as u8  - (ppu_registers.ly - ((ppu_registers.ly / 8) * 8)) - 1
+            },
+        };
         let tile_row = tile.pixel_rows[row_idx as usize];
 
         //Now constructing the row of pixels
@@ -118,6 +123,12 @@ impl PixelFetcher {
             };
 
             constructed_pixels.push(new_pixel);
+        }
+
+        //Finally accounting for x flipping
+        match sprite.x_flip {
+            Orientation::Normal => (),
+            Orientation::Mirrored => constructed_pixels.reverse(),
         }
 
         return constructed_pixels;
