@@ -3,7 +3,7 @@ pub struct Dma {
     current_address_offset: u8,     //Will help keep track of what address we are currently reading from and to
     cycles_since_start: u8,         //Tells us how many cycles have passed since the start of the DMA transfer
     cycles_before_write: u8,        //Will help us write every 4 cpu clks
-    currently_transferring: bool    //Tells us if we are currently transferring a some data
+    pub currently_transferring: bool    //Tells us if we are currently transferring a some data
 }
 
 impl Dma {

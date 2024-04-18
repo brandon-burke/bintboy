@@ -65,9 +65,6 @@ pub const PREFIX_OPCODE: u8 = 0xCB;
 pub const MAX_SCANLINE_CLK_TICKS: u16 = 456;
 pub const MAX_LY_VALUE: u8 = 153;
 
-
-
-
 //Constants that are just zero
 pub const LOWEST_PRIORITY_BG_COLOR: u8 = 0;
 pub const TRANSPARENT: u8 = 0;

@@ -47,6 +47,11 @@ impl Memory {
     }
 
     pub fn read_byte(&self, address: u16) -> u8 {
+        //Can't read anything below OAM while DMA is going
+        if self.dma.currently_transferring && address < OAM_START {
+            return 0xFF;
+        }
+
         match address {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize],
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize],
@@ -111,6 +116,11 @@ impl Memory {
     }
 
     pub fn write_byte(&mut self, address: u16, data_to_write: u8) {
+        //Can't write anything below OAM while DMA is going
+        if self.dma.currently_transferring && address < OAM_START {
+            return;
+        }
+
         match address {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize] = data_to_write,
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize] = data_to_write,

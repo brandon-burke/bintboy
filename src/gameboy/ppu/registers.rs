@@ -40,6 +40,26 @@ impl PpuRegisters {
     pub fn set_mode(&mut self, new_mode: PpuMode) {
         self.stat.ppu_mode = new_mode;
     }
+
+    /**
+     * Increments the scanline and updates the stat register
+     */
+    pub fn inc_ly_reg(&mut self) {
+        self.ly += 1;
+        self.compare_lyc_and_ly_reg();
+    }
+
+    /**
+     * Comparing the ly and lyc register. As well updating the stat register
+     * depending on the outcome.
+     */
+    pub fn compare_lyc_and_ly_reg(&mut self) {
+        if self.ly == self.lyc {
+            self.stat.lyc_ly_compare = State::On;
+        } else {
+            self.stat.lyc_ly_compare = State::Off;
+        }
+    }
 }
 
 /* Represents the LCD Control register (LCDC) */

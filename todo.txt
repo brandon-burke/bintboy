@@ -26,10 +26,10 @@ Features to add to ppu:
     -Make screen go blank (all white)
     -PPU will immediately start drawing again when turned back on
         -Screen will be blank for first frame though
--Implement Stat reg LYC==LYC
+-Implement Stat reg LY==LYC
     -Anywhere we change the ly value we should do a comparision and update the reg
     -Fire interrupt if enabled
--Implement SCX reg only being fully at the beginning of the scanline
+-Implement SCX reg only being fully read at the beginning of the scanline
     -Don't read the bottom 3 bits after that for subsequent tile fetches
 -Implement window glitch?
 -Make sure that for sprites, whenever the ID 0 is used to just default to tranparent

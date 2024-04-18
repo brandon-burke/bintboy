@@ -145,6 +145,11 @@ impl Ppu {
                     }
                 }
 
+                //Accounting for the initial pixel shifting
+                if self.clk_ticks == 1 {
+                    //Need to shift out SCX%8 pixels
+                    let num_pixels_to_discard = 
+                }
 
                 //Pushing the pixel that is to be rendered
                 let pixel_to_render = self.bg_window_fifo.remove(0);
@@ -179,14 +184,15 @@ impl Ppu {
                 if self.clk_ticks == MAX_SCANLINE_CLK_TICKS {
                     self.ppu_registers.set_mode(PpuMode::Vblank);
                     self.clk_ticks = 0;
-                    self.ppu_registers.ly += 1;
+                    self.ppu_registers.inc_ly_reg();
                 }
             },
             PpuMode::Vblank => {
                 if self.clk_ticks == MAX_SCANLINE_CLK_TICKS {
-                    self.ppu_registers.ly += 1;
+                    self.ppu_registers.inc_ly_reg();
                     if self.ppu_registers.ly > MAX_LY_VALUE {
                         self.ppu_registers.ly = 0;
+                        self.ppu_registers.compare_lyc_and_ly_reg();
                         self.ppu_registers.set_mode(PpuMode::OamScan);
                     }
                 }
@@ -395,6 +401,7 @@ impl Ppu {
 
     pub fn write_lyc_reg(&mut self, value: u8) {
         self.ppu_registers.lyc = value;
+        self.ppu_registers.compare_lyc_and_ly_reg();
     }
 
     pub fn read_stat_reg(&self) -> u8 {

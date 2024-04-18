@@ -84,10 +84,18 @@ impl PixelFetcher {
             SpriteSize::_8x8 => sprite.tile_index,
             SpriteSize::_8x16 => {
                 //Checking if we are using the bottom tile
-                if ((ppu_registers.ly + 16) - sprite.y_pos) > 7 && sprite.y_flip == Orientation::Normal {   //The 7 is b/c the tile rows go from 0-7 not 1-8
-                    sprite.tile_index | 0x01        //Enforcing to have a lsb
+                if ((ppu_registers.ly + 16) - sprite.y_pos) > 7 {   //The 7 is b/c the tile rows go from 0-7 not 1-8
+                    if sprite.x_flip == Orientation::Normal {
+                        sprite.tile_index | 0x01        //Enforcing to have a lsb
+                    } else {
+                        sprite.tile_index & 0xFE        //Enforcing to ignore the lsb
+                    }
                 } else {
-                    sprite.tile_index & 0xFE        //Enforcing to ignore the lsb
+                    if sprite.x_flip == Orientation::Normal {
+                        sprite.tile_index & 0xFE        //Enforcing to ignore the lsb
+                    } else {
+                        sprite.tile_index | 0x01        //Enforcing to have a lsb
+                    }
                 }
             },
         };
