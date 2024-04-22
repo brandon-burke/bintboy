@@ -55,7 +55,7 @@ pub enum SpriteSize {
     _8x16,
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum PpuMode {
     OamScan,        //Mode 2
     DrawingPixels,  //Mode 3

@@ -22,6 +22,9 @@ pub struct Ppu {
     sprite_fifo: Vec<Pixel>,        
     bg_window_fifo: Vec<Pixel>,
     initial_pixel_shift: u8,
+    penalty: u8,
+    pub vblank_interrupt_req: bool,
+    pub stat_interrupt_req: bool,
 }
 
 impl Ppu {
@@ -40,14 +43,20 @@ impl Ppu {
             sprite_fifo: Vec::with_capacity(8),
             bg_window_fifo: Vec::with_capacity(16),
             initial_pixel_shift: 0,
+            penalty: 0,
+            vblank_interrupt_req: false,
+            stat_interrupt_req: false,
         }
     }
 
-    pub fn cycle(&mut self) {
+    pub fn cycle(&mut self) -> Option<PaletteColors> {
         self.clk_ticks += 1;    //Keeps track of how many ticks during a mode
+        // dbg!(self.current_mode());
+        // dbg!(self.clk_ticks);
+        // dbg!(self.ppu_registers.ly);
 
         match self.current_mode() {
-            PpuMode::OamScan => {
+            PpuMode::OamScan => {   //Mode 2
                 //Finding up to 10 sprites that overlap the current scanline (ly)
                 //We're mimicking that it takes 80 clks to do this
                 if self.clk_ticks == 80 {
@@ -74,121 +83,152 @@ impl Ppu {
                     self.ppu_registers.x_scanline_coord = 0;
                 }
             },
-            PpuMode::DrawingPixels => {
+            PpuMode::DrawingPixels => { //Mode 3
                 //Set inital values when starting a draw
                 if self.clk_ticks == 1 {
                     self.sprite_fifo.clear();
                     self.bg_window_fifo.clear();
                     self.initial_pixel_shift = self.ppu_registers.scx % 8;
                 }
-                
-                //Clearing fifo if were doing a transition from bg to win or vice versa
-                if self.pixel_fetcher.bg_or_win_transition(&self.ppu_registers) {
-                    self.bg_window_fifo.clear();
-                }
 
-                //Fetch more bg/win tiles if the fifo is half or less full
-                while self.bg_window_fifo.len() <= 8 {
-                    //Determine the tile map
-                    let tile_map = match self.pixel_fetcher.determine_tile_map(&self.ppu_registers) {
-                        enums::TileMapArea::_9800_9BFF => &self.tile_map_0,
-                        enums::TileMapArea::_9C00_9FFF => &self.tile_map_1,
-                    };
-                    //Determine the tile_data_maps
-                    let tile_data_map = match self.ppu_registers.lcdc.bg_win_tile_data_area {
-                        TileDataArea::_8000_8FFF => (&self.tile_data_0, &self.tile_data_1),
-                        TileDataArea::_8800_97FF => (&self.tile_data_2, &self.tile_data_1),
-                    };
-                    //Get the Data
-                    let mut fetched_pixel_row = self.pixel_fetcher.fetch_pixel_row(&self.ppu_registers, 
-                                                                                    tile_map, 
-                                                                                    tile_data_map.0, 
-                                                                                    tile_data_map.1);
-
-                    self.bg_window_fifo.append(&mut fetched_pixel_row);
-                }
-
-                //Check to see if we need to render actual sprites or fill with just transparent ones
-                match self.ppu_registers.lcdc.sprite_enable {
-                    State::Off => {
-                        while self.sprite_fifo.len() < 8 {
-                            self.sprite_fifo.push(Pixel::new_translucent_sprite_pixel());
-                        }
-                    },
-                    State::On => {
-                        if let Some(sprite) = self.visible_sprites.iter().find(|s| s.x_pos == self.ppu_registers.x_scanline_coord + 8) {
-                            let mut fetched_pixel_row = self.pixel_fetcher.fetch_sprite_pixel_row(&self.ppu_registers, 
-                                                                                                    &self.tile_data_0, 
-                                                                                                    &self.tile_data_1, 
-                                                                                                    sprite);
-                            self.sprite_fifo.append(&mut fetched_pixel_row);
-                        } 
-                    }
-                }
-
-                //Mixing sprite pixels with bg pixels
-                for pixel_idx in (0..8).rev() {
-                    let sprite_pixel = self.sprite_fifo.remove(pixel_idx);
-                    let pixel = self.bg_window_fifo[pixel_idx];
-
-                    //Checking if were comparing against a bg pixel. We skip if its a sprite.
-                    if !pixel.is_sprite {
-                        match sprite_pixel.bg_priority.unwrap() {
-                            SpritePriority::UnderBg => {
-                                if pixel.color_id == LOWEST_PRIORITY_BG_COLOR && sprite_pixel.color_id != TRANSPARENT {
-                                    self.bg_window_fifo[pixel_idx] = sprite_pixel;
-                                }
-                            },
-                            SpritePriority::OverBg => {
-                                if pixel.color_id != TRANSPARENT {
-                                    self.bg_window_fifo[pixel_idx] = sprite_pixel;
-                                }
-                            },
+                if self.penalty > 0 {
+                    self.penalty -= 1;
+                } else {
+                    //Clearing fifo if were doing a transition from bg to win or vice versa
+                    if self.pixel_fetcher.bg_or_win_transition(&self.ppu_registers) {
+                        self.bg_window_fifo.clear();
+                        if self.pixel_fetcher.is_bg_to_win(&self.ppu_registers) {
+                            self.penalty = 6;
+                            self.stat_interrupt_req = self.raise_interrupt();
+                            return None;
                         }
                     }
+
+                    //Fetch more bg/win tiles if the fifo is half or less full
+                    while self.bg_window_fifo.len() <= 8 {
+                        //Determine the tile map
+                        let tile_map = match self.pixel_fetcher.determine_tile_map(&self.ppu_registers) {
+                            enums::TileMapArea::_9800_9BFF => &self.tile_map_0,
+                            enums::TileMapArea::_9C00_9FFF => &self.tile_map_1,
+                        };
+                        //Determine the tile_data_maps
+                        let tile_data_map = match self.ppu_registers.lcdc.bg_win_tile_data_area {
+                            TileDataArea::_8000_8FFF => (&self.tile_data_0, &self.tile_data_1),
+                            TileDataArea::_8800_97FF => (&self.tile_data_2, &self.tile_data_1),
+                        };
+                        //Get the Data
+                        let mut fetched_pixel_row = self.pixel_fetcher.fetch_pixel_row(&self.ppu_registers, 
+                                                                                        tile_map, 
+                                                                                        tile_data_map.0, 
+                                                                                        tile_data_map.1);
+
+                        self.bg_window_fifo.append(&mut fetched_pixel_row);
+                    }
+
+                    //Check to see if we need to render actual sprites or fill with just transparent ones
+                    match self.ppu_registers.lcdc.sprite_enable {
+                        State::Off => {
+                            while self.sprite_fifo.len() < 8 {
+                                self.sprite_fifo.push(Pixel::new_translucent_sprite_pixel());
+                            }
+                        },
+                        State::On => {
+                            if let Some(sprite) = self.visible_sprites.iter().find(|s| s.x_pos == self.ppu_registers.x_scanline_coord + 8) {
+                                let mut fetched_pixel_row = self.pixel_fetcher.fetch_sprite_pixel_row(&self.ppu_registers, 
+                                                                                                        &self.tile_data_0, 
+                                                                                                        &self.tile_data_1, 
+                                                                                                        sprite);
+                                self.sprite_fifo.append(&mut fetched_pixel_row);
+                            } else {
+                                while self.sprite_fifo.len() < 8 {
+                                    self.sprite_fifo.push(Pixel::new_translucent_sprite_pixel());
+                                }
+                            }
+                        }
+                    }
+
+                    //Mixing sprite pixels with bg pixels
+                    for pixel_idx in (0..8).rev() {
+                        let sprite_pixel = self.sprite_fifo.remove(pixel_idx);
+                        let pixel = self.bg_window_fifo[pixel_idx];
+
+                        //Checking if were comparing against a bg pixel. We skip if its a sprite.
+                        if !pixel.is_sprite {
+                            match sprite_pixel.bg_priority.unwrap() {
+                                SpritePriority::UnderBg => {
+                                    if pixel.color_id == LOWEST_PRIORITY_BG_COLOR && sprite_pixel.color_id != TRANSPARENT {
+                                        self.bg_window_fifo[pixel_idx] = sprite_pixel;
+                                    }
+                                },
+                                SpritePriority::OverBg => {
+                                    if pixel.color_id != TRANSPARENT {
+                                        self.bg_window_fifo[pixel_idx] = sprite_pixel;
+                                    }
+                                },
+                            }
+                        }
+                    }
+
+                    //Pushing the pixel that is to be rendered
+                    let pixel_to_render = self.bg_window_fifo.remove(0);
+                    let final_pixel_color = match self.ppu_registers.lcdc.bg_win_priority {
+                        State::On => {
+                            if !pixel_to_render.is_sprite {
+                                self.ppu_registers.bgp.convert_colorid_to_color(pixel_to_render.color_id)
+                            } else {
+                                match pixel_to_render.palette.unwrap() {    //I know it should be a sprite so just unwrap it
+                                    enums::SpritePalette::Obp0 => self.ppu_registers.obp0.convert_colorid_to_color(pixel_to_render.color_id),
+                                    enums::SpritePalette::Obp1 => self.ppu_registers.obp1.convert_colorid_to_color(pixel_to_render.color_id),
+                                    _ => panic!("You haven't implemented CGB palette yet!")
+                                }
+                            }
+                        },
+                        State::Off => {
+                            if !pixel_to_render.is_sprite {
+                                PaletteColors::White
+                            } else {
+                                match pixel_to_render.palette.unwrap() {    //I know it should be a sprite so just unwrap it
+                                    enums::SpritePalette::Obp0 => self.ppu_registers.obp0.convert_colorid_to_color(pixel_to_render.color_id),
+                                    enums::SpritePalette::Obp1 => self.ppu_registers.obp1.convert_colorid_to_color(pixel_to_render.color_id),
+                                    _ => panic!("You haven't implemented CGB palette yet!")
+                                }
+                            }
+                        },
+                    };
+
+                    //Adjusting for initial pizel shifting
+                    let mut pixel = Some(final_pixel_color);
+                    if self.initial_pixel_shift > 0 {
+                        self.initial_pixel_shift -= 1;
+                        pixel = None;
+                    }
+
+                    self.ppu_registers.x_scanline_coord += 1;
+                    if self.ppu_registers.x_scanline_coord == 160 {
+                        self.ppu_registers.x_scanline_coord = 0;
+                        self.ppu_registers.set_mode(PpuMode::Hblank);
+                    }
+
+                    self.stat_interrupt_req = self.raise_interrupt();
+                    return pixel;
                 }
-
-                //Pushing the pixel that is to be rendered
-                let pixel_to_render = self.bg_window_fifo.remove(0);
-                let final_pixel_color = match self.ppu_registers.lcdc.bg_win_priority {
-                    State::On => {
-                        if !pixel_to_render.is_sprite {
-                            self.ppu_registers.bgp.convert_colorid_to_color(pixel_to_render.color_id)
-                        } else {
-                            match pixel_to_render.palette.unwrap() {    //I know it should be a sprite so just unwrap it
-                                enums::SpritePalette::Obp0 => self.ppu_registers.obp0.convert_colorid_to_color(pixel_to_render.color_id),
-                                enums::SpritePalette::Obp1 => self.ppu_registers.obp1.convert_colorid_to_color(pixel_to_render.color_id),
-                                _ => panic!("You haven't implemented CGB palette yet!")
-                            }
-                        }
-                    },
-                    State::Off => {
-                        if !pixel_to_render.is_sprite {
-                            PaletteColors::White
-                        } else {
-                            match pixel_to_render.palette.unwrap() {    //I know it should be a sprite so just unwrap it
-                                enums::SpritePalette::Obp0 => self.ppu_registers.obp0.convert_colorid_to_color(pixel_to_render.color_id),
-                                enums::SpritePalette::Obp1 => self.ppu_registers.obp1.convert_colorid_to_color(pixel_to_render.color_id),
-                                _ => panic!("You haven't implemented CGB palette yet!")
-                            }
-                        }
-                    },
-                };
-
-                
-
-
-                self.ppu_registers.x_scanline_coord += 1;
             },
-            PpuMode::Hblank =>  {
+            PpuMode::Hblank =>  {   //mode 0
                 if self.clk_ticks == MAX_SCANLINE_CLK_TICKS {
-                    self.ppu_registers.set_mode(PpuMode::Vblank);
                     self.clk_ticks = 0;
                     self.ppu_registers.inc_ly_reg();
+
+                    if self.ppu_registers.ly == 144 {
+                        self.ppu_registers.set_mode(PpuMode::Vblank);
+                        self.vblank_interrupt_req = true;
+                    } else {
+                        self.ppu_registers.set_mode(PpuMode::OamScan);
+                    }
                 }
             },
-            PpuMode::Vblank => {
+            PpuMode::Vblank => { //Mode 1
                 if self.clk_ticks == MAX_SCANLINE_CLK_TICKS {
+                    self.clk_ticks = 0;
                     self.ppu_registers.inc_ly_reg();
                     if self.ppu_registers.ly > MAX_LY_VALUE {
                         self.ppu_registers.ly = 0;
@@ -198,6 +238,33 @@ impl Ppu {
                 }
             }
         }
+
+        self.stat_interrupt_req = self.raise_interrupt();
+        return None;
+    }
+
+    /**
+     * Returns if we should raise an interrupt or not
+     */
+    fn raise_interrupt(&self) -> bool {
+        let int_enable_mask: u8 = self.ppu_registers.stat.read_reg_raw() >> 3;
+        let mut interrupts_mask: u8 = 0;
+
+        interrupts_mask |= match self.ppu_registers.stat.lyc_ly_compare {
+            State::On => 1 << 3,
+            State::Off => 0,
+        };
+        interrupts_mask |= match self.current_mode() {
+            PpuMode::OamScan => 1 << 2,
+            PpuMode::Vblank => 1 << 1,
+            PpuMode::Hblank => 1 << 0,
+            PpuMode::DrawingPixels => 0,
+        };
+
+        if (int_enable_mask & interrupts_mask) > 0 {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -207,6 +274,11 @@ impl Ppu {
      */
     fn is_sprite_in_scanline(&self, sprite: &Sprite) -> SpriteScanlineVisibility {
         let current_scanline = self.ppu_registers.ly + 16;
+        
+        if sprite.y_pos > 143 {
+            
+        }
+
         let sprite_y_pos_end = match self.ppu_registers.sprite_size() {
             SpriteSize::_8x8 => sprite.y_pos + 8,
             SpriteSize::_8x16 => sprite.y_pos + 16,

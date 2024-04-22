@@ -19,7 +19,6 @@ pub struct Memory {
     timer: Timer,               //     -> FF04h - FF07h
     ppu: Ppu,                   //Pixel Processing Unit. Houses most of the graphics related memory
     dma: Dma,                   //     -> FF46h OAM DMA source address register
-
     io: [u8; 0x80],             //     -> FF00h – FF7Fh (I/O ports)
     pub interrupt_handler: InterruptHandler, //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
     hram: [u8; 0x7F],           //     -> FF80h – FFFEh (HRAM)
@@ -83,8 +82,8 @@ impl Memory {
                 }
             },
             UNUSED_START ..= UNUSED_END => {
-                panic!("I don't think we should be accessing unused memory");
-            }
+                return self.unused[(address - UNUSED_START) as usize]
+            },
             IO_START ..= IO_END => {
                 match address {
                     JOYPAD_P1_REG => self.joypad.read_joypad_reg(),
@@ -142,9 +141,13 @@ impl Memory {
             ECHO_START ..= ECHO_END => {
                 panic!("I don't think we should be writing echo memory");
             }
-            OAM_START ..= OAM_END => self.ppu.write_oam(address, data_to_write),
+            OAM_START ..= OAM_END => {
+                if self.ppu.current_mode() != PpuMode::OamScan && self.ppu.current_mode() != PpuMode::DrawingPixels {
+                    self.ppu.write_oam(address, data_to_write)
+                }
+            },
             UNUSED_START ..= UNUSED_END => {
-                panic!("I don't think we should be writing unused memory");
+                self.unused[(address - UNUSED_START) as usize] = data_to_write;
             }
             IO_START ..= IO_END => {
                 match address {
@@ -194,15 +197,14 @@ impl Memory {
     pub fn gpu_cycle(&mut self) {
         self.ppu.cycle();
 
-        // if self.ppu.vblank_interrupt_requested {
-        //     self.interrupt_handler.if_reg |= 0x1;
-        //     self.ppu.vblank_interrupt_requested = false;
-        // }
+        if self.ppu.vblank_interrupt_req {
+            self.ppu.vblank_interrupt_req = false;
+            self.interrupt_handler.if_reg |= 0x1;
+        }
 
-        // if self.ppu.stat_interrupt_requested {
-        //     self.interrupt_handler.if_reg |= 0x2;
-        //     self.ppu.stat_interrupt_requested = false;
-        // }
+        if self.ppu.stat_interrupt_req {
+            self.interrupt_handler.if_reg |= 0x2;
+        }
     }
 
     pub fn timer_cycle(&mut self) {

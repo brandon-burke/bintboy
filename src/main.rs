@@ -1,6 +1,6 @@
 mod gameboy;
 
-use std::env;
+use std::{env, fs};
 use std::fs::File;
 use std::io::Read;
 use crate::gameboy::Gameboy;
@@ -21,10 +21,28 @@ use crate::gameboy::Gameboy;
  */
 fn main() {
     let args = env::args().collect::<Vec<String>>();
-    let (rom_file_0, rom_file_1) = create_rom_file(&args[1]);
-    let mut gameboy = Gameboy::new();
+    let paths = fs::read_dir(&args[1]).unwrap();
+    let mut tests = vec![];
 
-    gameboy.run(rom_file_0, rom_file_1);
+    for path in paths {
+        let path = path.unwrap().path();
+        if path.is_file() && path.extension().unwrap() == "gb" {
+            //println!("Reading {}", &path.display().to_string());
+            let (rom_file_0, rom_file_1) = create_rom_file(&path.display().to_string());
+            let mut gameboy = Gameboy::new();
+
+            let result = match gameboy.run(rom_file_0, rom_file_1) {
+                gameboy::TestStatus::Pass => "Pass",
+                gameboy::TestStatus::Failed => "Failed",
+            };
+
+            tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
+        }
+    }
+
+    for (test, status) in tests {
+        println!("{}: {}", test, status);
+    }
 }
 
 /**
@@ -48,6 +66,5 @@ fn create_rom_file(file_path: &str) -> ([u8; 0x4000], [u8; 0x4000]) {
             };
         }
     }
-
     return (rom_file_0, rom_file_1);
 }

@@ -22,7 +22,7 @@ pub struct Cpu {
     pub pc: u16,            //Program Counter Register
     pub cpu_state: CpuState,    //Let's us know the current state of the CPU
     cpu_clk_cycles: u8,     //Keeps track of how many cpu clk cycles have gone by
-    current_opcode: u8,     //Keeps track of the current worked on opcode
+    pub current_opcode: u8,     //Keeps track of the current worked on opcode
 }
 
 impl Cpu {
@@ -65,6 +65,11 @@ impl Cpu {
 
                 if self.current_opcode == 0x76 {
                     println!("HALT");
+                }
+
+                if self.current_opcode == 0x40 {
+                    dbg!(&self);
+                    println!("hi");
                 }
                 
                 if self.current_opcode == PREFIX_OPCODE {

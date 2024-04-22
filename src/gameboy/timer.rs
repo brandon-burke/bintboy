@@ -164,26 +164,3 @@ impl Timer {
         return self.tac_reg;
     }
 }
-
-//Div register
-    //Not really the thing that let's us know how much time has passed
-    //But rather something that affects how precise our counter is
-    //For instance, home ovens can only show you how many minutes have passed
-    //Where as stop watches can show you how many seconds have passed
-    //This register can change the timer to go from the precision of minutes or seconds essentially
-
-//TIMA register
-    //This is the actual thing that's keeping track of time
-    //Once it overflows it requests an interrupt and it is reloaded by the TMA register
-
-//TMA register
-    //The value in this register will be what gets reloaded into the TIMA register when the TIMA register overflows
-    
-//TAC control
-    //The actual place where we control how precise the timer is 
-
-
-
-
-
-

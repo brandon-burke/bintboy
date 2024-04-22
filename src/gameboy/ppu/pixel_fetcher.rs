@@ -32,8 +32,10 @@ impl PixelFetcher {
 
         //Getting all info to index into the tile map and tile data map
         let tile_map_x_coord = ((ppu_registers.scx / 8) + self.x_coordinate) & 0x1F;
-        let tile_map_y_coord = (ppu_registers.ly + ppu_registers.scy) & 255;
-        let tile_map_idx = tile_map_x_coord + ((tile_map_y_coord / 8) * 32);
+        let tile_map_y_coord = ppu_registers.ly.wrapping_add(ppu_registers.scy);//(ppu_registers.ly + ppu_registers.scy) & 255;
+        //dbg!(tile_map_x_coord);
+        //dbg!(tile_map_y_coord);
+        let tile_map_idx = tile_map_x_coord as u16 + ((tile_map_y_coord as u16 / 8) * 32);
         let tile_data_idx = tile_map[tile_map_idx as usize];
 
         //Just getting the actual tile now
@@ -181,6 +183,17 @@ impl PixelFetcher {
             return true;
         }
 
+        return false;
+    }
+
+    /**
+     * Since I'm too lazy to fix the original transition function. Here's one
+     * that's specifically for when we go from bg to win
+     */
+    pub fn is_bg_to_win(&self, ppu_registers: &PpuRegisters) -> bool {
+        if ppu_registers.lcdc.win_enable == State::On && self.is_inside_window(ppu_registers) && !self.drawing_window {
+            return true;
+        }
         return false;
     }
 
