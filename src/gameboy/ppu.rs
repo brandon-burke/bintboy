@@ -21,6 +21,7 @@ pub struct Ppu {
     pixel_fetcher: PixelFetcher,
     sprite_fifo: Vec<Pixel>,        
     bg_window_fifo: Vec<Pixel>,
+    initial_pixel_shift: u8,
 }
 
 impl Ppu {
@@ -38,6 +39,7 @@ impl Ppu {
             pixel_fetcher: PixelFetcher::new(),
             sprite_fifo: Vec::with_capacity(8),
             bg_window_fifo: Vec::with_capacity(16),
+            initial_pixel_shift: 0,
         }
     }
 
@@ -77,6 +79,7 @@ impl Ppu {
                 if self.clk_ticks == 1 {
                     self.sprite_fifo.clear();
                     self.bg_window_fifo.clear();
+                    self.initial_pixel_shift = self.ppu_registers.scx % 8;
                 }
                 
                 //Clearing fifo if were doing a transition from bg to win or vice versa
@@ -145,12 +148,6 @@ impl Ppu {
                     }
                 }
 
-                //Accounting for the initial pixel shifting
-                if self.clk_ticks == 1 {
-                    //Need to shift out SCX%8 pixels
-                    let num_pixels_to_discard = 
-                }
-
                 //Pushing the pixel that is to be rendered
                 let pixel_to_render = self.bg_window_fifo.remove(0);
                 let final_pixel_color = match self.ppu_registers.lcdc.bg_win_priority {
@@ -177,6 +174,9 @@ impl Ppu {
                         }
                     },
                 };
+
+                
+
 
                 self.ppu_registers.x_scanline_coord += 1;
             },
