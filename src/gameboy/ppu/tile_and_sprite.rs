@@ -77,20 +77,35 @@ impl Sprite {
         //You can use match statments here buddy
 
         if self.priority ==  SpritePriority::UnderBg {
-            value = value | (0x1 << 7);
+            value |= 0x1 << 7;
         }
 
         if self.y_flip == Orientation::Mirrored {
-            value = value | (0x1 << 6);
+            value |= 0x1 << 6;
         }
         
         if self.x_flip == Orientation::Mirrored {
-            value = value | (0x1 << 5);
+            value |= 0x1 << 5;
         }
 
         if self.dmg_palette == SpritePalette::Obp1 {
-            value = value | (0x1 << 4);
+            value |= 0x1 << 4;
         }
+
+        if self.bank == VramBank::Bank1 {
+            value |= 0x1 << 3;
+        }
+
+        value |= match self.cgb_palette {
+            SpritePalette::Obp0 => 0,
+            SpritePalette::Obp1 => 1,
+            SpritePalette::Obp2 => 2,
+            SpritePalette::Obp3 => 3,
+            SpritePalette::Obp4 => 4,
+            SpritePalette::Obp5 => 5,
+            SpritePalette::Obp6 => 6,
+            SpritePalette::Obp7 => 7,
+        };
 
         return value;
     }
@@ -106,14 +121,21 @@ impl Sprite {
             _ => Orientation::Mirrored,
         };
 
-        self.x_flip = match binary_utils::get_bit(value, 6) {
+        self.x_flip = match binary_utils::get_bit(value, 5) {
             0 => Orientation::Normal,
             _ => Orientation::Mirrored,
         };
 
-        self.dmg_palette = match binary_utils::get_bit(value, 5) {
+        self.dmg_palette = match binary_utils::get_bit(value, 4) {
             0 => SpritePalette::Obp0,
             _ => SpritePalette::Obp1,
-        }
+        };
+
+        self.bank = match binary_utils::get_bit(value, 3) {
+            0 => VramBank::Bank0,
+            _ => VramBank::Bank1,
+        };
+
+        self.cgb_palette = match
     }
 }

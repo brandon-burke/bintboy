@@ -21,27 +21,40 @@ use crate::gameboy::Gameboy;
  */
 fn main() {
     let args = env::args().collect::<Vec<String>>();
-    let paths = fs::read_dir(&args[1]).unwrap();
-    let mut tests = vec![];
+    //let file_name = &args[1];
+    let file_name = "test_roms/acceptance/bits/mem_oam.gb";
+    let debug = true;
 
-    for path in paths {
-        let path = path.unwrap().path();
-        if path.is_file() && path.extension().unwrap() == "gb" {
-            //println!("Reading {}", &path.display().to_string());
-            let (rom_file_0, rom_file_1) = create_rom_file(&path.display().to_string());
-            let mut gameboy = Gameboy::new();
-
-            let result = match gameboy.run(rom_file_0, rom_file_1) {
-                gameboy::TestStatus::Pass => "Pass",
-                gameboy::TestStatus::Failed => "Failed",
-            };
-
-            tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
+    if !debug && &args[2] == "1" {
+        let paths = fs::read_dir(&args[1]).unwrap();
+        let mut tests = vec![];
+        for path in paths {
+            let path = path.unwrap().path();
+            if path.is_file() && path.extension().unwrap() == "gb" {
+                println!("Reading {}", &path.display().to_string());
+                let (rom_file_0, rom_file_1) = create_rom_file(&path.display().to_string());
+                let mut gameboy = Gameboy::new();
+    
+                let result = match gameboy.run(rom_file_0, rom_file_1) {
+                    gameboy::TestStatus::Pass => "Pass",
+                    gameboy::TestStatus::Failed => "Failed",
+                };
+    
+                tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
+            }
         }
-    }
 
-    for (test, status) in tests {
-        println!("{}: {}", test, status);
+        for (test, status) in tests {
+            println!("{}: {}", test, status);
+        }
+    } else {
+        let (rom_file_0, rom_file_1) = create_rom_file(file_name);
+        let mut gameboy = Gameboy::new();
+        println!("Reading {}", file_name);
+        match gameboy.run(rom_file_0, rom_file_1) {
+            gameboy::TestStatus::Pass => println!("Pass"),
+            gameboy::TestStatus::Failed => println!("Failed"),
+        };
     }
 }
 

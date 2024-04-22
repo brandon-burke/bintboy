@@ -72,7 +72,12 @@ impl Memory {
             WRAM_0_START ..= WRAM_0_END => self.wram_0[(address - WRAM_0_START) as usize],
             WRAM_X_START ..= WRAM_X_END => self.wram_x[(address - WRAM_X_START) as usize],
             ECHO_START ..= ECHO_END => {
-                panic!("I don't think we should be accessing echo memory");
+                let wram_address = address - 0x2000;
+                match wram_address { 
+                    WRAM_0_START ..= WRAM_0_END => self.wram_0[(wram_address - WRAM_0_START) as usize],
+                    WRAM_X_START ..= WRAM_X_END => self.wram_x[(wram_address - WRAM_X_START) as usize],
+                    _ => panic!("Issues calculating echo ram")
+                }
             }
             OAM_START ..= OAM_END => {
                 if self.ppu.current_mode() != PpuMode::OamScan && self.ppu.current_mode() != PpuMode::DrawingPixels {
@@ -139,7 +144,12 @@ impl Memory {
             WRAM_0_START ..= WRAM_0_END => self.wram_0[(address - WRAM_0_START) as usize] = data_to_write,
             WRAM_X_START ..= WRAM_X_END => self.wram_x[(address - WRAM_X_START) as usize] = data_to_write,
             ECHO_START ..= ECHO_END => {
-                panic!("I don't think we should be writing echo memory");
+                let wram_address = address - 0x2000;
+                match wram_address { 
+                    WRAM_0_START ..= WRAM_0_END => self.wram_0[(wram_address - WRAM_0_START) as usize] = data_to_write,
+                    WRAM_X_START ..= WRAM_X_END => self.wram_x[(wram_address - WRAM_X_START) as usize] = data_to_write,
+                    _ => panic!("Issues calculating echo ram")
+                }
             }
             OAM_START ..= OAM_END => {
                 if self.ppu.current_mode() != PpuMode::OamScan && self.ppu.current_mode() != PpuMode::DrawingPixels {

@@ -25,7 +25,7 @@ pub enum SpritePalette {
     Obp7,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum VramBank {
     Bank0,
     Bank1,

@@ -275,8 +275,8 @@ impl Ppu {
     fn is_sprite_in_scanline(&self, sprite: &Sprite) -> SpriteScanlineVisibility {
         let current_scanline = self.ppu_registers.ly + 16;
         
-        if sprite.y_pos > 143 {
-            
+        if sprite.y_pos >= 160 {
+            return SpriteScanlineVisibility::NotInScanLine;
         }
 
         let sprite_y_pos_end = match self.ppu_registers.sprite_size() {

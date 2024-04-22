@@ -215,7 +215,7 @@ impl Cpu {
             0x3B => Cpu::dec_sp(&mut self.sp, machine_cycle),                                           //DEC_SP
             0x3C => Cpu::inc_r8(&mut self.f, &mut self.a, machine_cycle),                               //INC_R8
             0x3D => Cpu::dec_r8(&mut self.f, &mut self.a, machine_cycle),               //DEC_R8    
-            0x3E => Cpu::ld_r8_u8(memory, &mut self.a, &mut self.pc, machine_cycle),            //LD_A_U81
+            0x3E => Cpu::ld_r8_u8(memory, &mut self.a, &mut self.pc, machine_cycle),            //LD_A_U8
             0x3F => Cpu::ccf(&mut self.f, machine_cycle),                                       //CCF
             0x40 => Cpu::ld_r8_r8(self.b, &mut self.b, machine_cycle),                          //LD_B_B
             0x41 => Cpu::ld_r8_r8(self.c, &mut self.b, machine_cycle),                          //LD_B_C
