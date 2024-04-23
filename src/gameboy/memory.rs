@@ -80,7 +80,7 @@ impl Memory {
                 }
             }
             OAM_START ..= OAM_END => {
-                if self.ppu.current_mode() != PpuMode::OamScan && self.ppu.current_mode() != PpuMode::DrawingPixels {
+                if (self.ppu.current_mode() != PpuMode::OamScan && self.ppu.current_mode() != PpuMode::DrawingPixels) || !self.ppu.is_active() {
                     self.ppu.read_oam(address)
                 } else {
                     return 0xFF;
@@ -152,7 +152,7 @@ impl Memory {
                 }
             }
             OAM_START ..= OAM_END => {
-                if self.ppu.current_mode() != PpuMode::OamScan && self.ppu.current_mode() != PpuMode::DrawingPixels {
+                if (self.ppu.current_mode() != PpuMode::OamScan && self.ppu.current_mode() != PpuMode::DrawingPixels) || !self.ppu.is_active() {
                     self.ppu.write_oam(address, data_to_write)
                 }
             },

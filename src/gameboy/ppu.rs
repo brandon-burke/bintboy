@@ -244,6 +244,16 @@ impl Ppu {
     }
 
     /**
+     * Returns true if the ppu is active. Will only return false if the lcdc bit is turned off
+     */
+    pub fn is_active(&self) -> bool {
+        match self.ppu_registers.lcdc.lcd_ppu_enable {
+            State::On => true,
+            State::Off => false,
+        }
+    }
+
+    /**
      * Returns if we should raise an interrupt or not
      */
     fn raise_interrupt(&self) -> bool {

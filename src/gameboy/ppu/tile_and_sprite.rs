@@ -136,6 +136,16 @@ impl Sprite {
             _ => VramBank::Bank1,
         };
 
-        self.cgb_palette = match
+        self.cgb_palette = match value & 0x7 { 
+            0 => SpritePalette::Obp0,
+            1 => SpritePalette::Obp1,
+            2 => SpritePalette::Obp2,
+            3 => SpritePalette::Obp3,
+            4 => SpritePalette::Obp4,
+            5 => SpritePalette::Obp5,
+            6 => SpritePalette::Obp6,
+            7 => SpritePalette::Obp7,
+            _ => panic!("How did you get a higher number than 7"),
+        };
     }
 }

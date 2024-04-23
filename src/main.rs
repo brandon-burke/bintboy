@@ -23,7 +23,7 @@ fn main() {
     let args = env::args().collect::<Vec<String>>();
     //let file_name = &args[1];
     let file_name = "test_roms/acceptance/bits/mem_oam.gb";
-    let debug = true;
+    let debug = false;
 
     if !debug && &args[2] == "1" {
         let paths = fs::read_dir(&args[1]).unwrap();
