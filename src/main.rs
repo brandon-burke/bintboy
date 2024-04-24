@@ -1,8 +1,7 @@
 mod gameboy;
 use crate::gameboy::Gameboy;
 
-use std::path::PathBuf;
-use std::{env, fs};
+use std::fs;
 use std::fs::File;
 use std::io::Read;
 
@@ -10,21 +9,19 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
-struct Args {
+struct Cli {
     #[command(subcommand)]
-    cmd: Commands
+    cmd: Commands,
 }
 
-#[derive(Subcommand, Debug, Clone)]
+#[derive(Subcommand)]
 enum Commands {
-    Get { value: String },
-    Set {
+    /// Will take in a single file path to a .gb rom test file
+    F { path: String },
 
-        is_true: bool
-    }
+    /// Will take in a directory path and will run all .gb rom test files in it
+    D { path: String },
 }
-
-
 
 /**
  * THINGS I TOLD MYSELF WOULD BE A PROBLEM LATER BUT DIDNT LISTEN
@@ -41,54 +38,42 @@ enum Commands {
  * that specify what gameboy rom to run
  */
 fn main() {
-    let args = Args::parse();
+    let args = Cli::parse();
 
     match args.cmd {
-        Commands::Get { value } => println!("{value}"),
-        Commands::Set { is_true } => println!("{is_true}"),
+        Commands::F { path } => {
+            let (rom_file_0, rom_file_1) = create_rom_file(&path);
+            let mut gameboy = Gameboy::new();
+            println!("Running Test {}", path);
+            match gameboy.run(rom_file_0, rom_file_1) {
+                gameboy::TestStatus::Pass => println!("Pass"),
+                gameboy::TestStatus::Failed => println!("Failed"),
+            };
+        },
+        Commands::D { path } => {
+            let paths = fs::read_dir(path).unwrap();
+            let mut tests = vec![];
+            for path in paths {
+                let path = path.unwrap().path();
+                if path.is_file() && path.extension().unwrap() == "gb" {
+                    println!("Reading {}", &path.display().to_string());
+                    let (rom_file_0, rom_file_1) = create_rom_file(&path.display().to_string());
+                    let mut gameboy = Gameboy::new();
+        
+                    let result = match gameboy.run(rom_file_0, rom_file_1) {
+                        gameboy::TestStatus::Pass => "Pass",
+                        gameboy::TestStatus::Failed => "Failed",
+                    };
+        
+                    tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
+                }
+            }
+    
+            for (test, status) in tests {
+                println!("{}: {}", test, status);
+            }
+        },
     }
-
-    // if let Some(name) = cli.name.as_deref() {
-    //     println!("Value for name: {name}");
-    // } else {
-    //     println!("No name provided");
-    // }
-    // let args = env::args().collect::<Vec<String>>();
-    // //let file_name = &args[1];
-    // let file_name = "test_roms/acceptance/bits/mem_oam.gb";
-    // let debug = false;
-
-    // if !debug && &args[2] == "1" {
-    //     let paths = fs::read_dir(&args[1]).unwrap();
-    //     let mut tests = vec![];
-    //     for path in paths {
-    //         let path = path.unwrap().path();
-    //         if path.is_file() && path.extension().unwrap() == "gb" {
-    //             println!("Reading {}", &path.display().to_string());
-    //             let (rom_file_0, rom_file_1) = create_rom_file(&path.display().to_string());
-    //             let mut gameboy = Gameboy::new();
-    
-    //             let result = match gameboy.run(rom_file_0, rom_file_1) {
-    //                 gameboy::TestStatus::Pass => "Pass",
-    //                 gameboy::TestStatus::Failed => "Failed",
-    //             };
-    
-    //             tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
-    //         }
-    //     }
-
-    //     for (test, status) in tests {
-    //         println!("{}: {}", test, status);
-    //     }
-    // } else {
-    //     let (rom_file_0, rom_file_1) = create_rom_file(file_name);
-    //     let mut gameboy = Gameboy::new();
-    //     println!("Reading {}", file_name);
-    //     match gameboy.run(rom_file_0, rom_file_1) {
-    //         gameboy::TestStatus::Pass => println!("Pass"),
-    //         gameboy::TestStatus::Failed => println!("Failed"),
-    //     };
-    // }
 }
 
 /**

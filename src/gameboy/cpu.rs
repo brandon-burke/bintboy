@@ -58,18 +58,18 @@ impl Cpu {
         //Depending on what state you are in you have to do the work that corresponds to it
         match self.cpu_state.clone() {
             CpuState::Fetch => {
-                if self.pc == 0xC36F {
-                    println!("");
-                }
                 self.current_opcode = self.fetch(memory);
 
                 if self.current_opcode == 0x76 {
                     println!("HALT");
                 }
 
+                if self.current_opcode == 0x10 {
+                    println!("STOP");
+                }
+
                 if self.current_opcode == 0x40 {
                     dbg!(&self);
-                    println!("hi");
                 }
                 
                 if self.current_opcode == PREFIX_OPCODE {

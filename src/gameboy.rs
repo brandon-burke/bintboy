@@ -71,8 +71,6 @@ impl Gameboy {
             //     print!("{}", byte as char);
             //     self.memory.write_byte(0xff02, 0);
             // }
-            
-
         }
     }
 }
