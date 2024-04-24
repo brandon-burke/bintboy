@@ -2810,13 +2810,12 @@ impl Cpu {
     /**
      * Bit test the byte pointed to by HL.
      * 
-     * MACHINE CYCLES: 4
+     * MACHINE CYCLES: 3
      * INSTRUCTION LENGTH: 2
      */
     fn bit_u3_hl(flag_reg: &mut u8, memory: &Memory, reg_h: u8, reg_l: u8, bit_to_test: u8, machine_cycle: u8) -> Status {
         match machine_cycle {
-            1 => (), //Should be reading from hl here but nah
-            2 => {
+            1 => {
                 let hl_data = memory.read_byte(build_16bit_num(reg_h, reg_l));
                 let result = binary_utils::get_bit(hl_data, bit_to_test);
                 Cpu::set_flags(flag_reg, Some(result == 0), Some(false), Some(true), None);
@@ -2824,7 +2823,6 @@ impl Cpu {
             },
             _ => panic!("1 to many machine cycles in bit_u3_hl"),
         }
-        return Status::Running;
     }
 
     /**

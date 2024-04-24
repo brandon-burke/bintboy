@@ -31,6 +31,7 @@ enum Commands {
  * -Not letting sprites physically draw over the window because of how I mix pixels
  * -Not using the WX reg for pixel fetching, so window drawing can be wrong because of this
  * -When constructing the pixels and xpos is flipped I'm pushing to the head to yeah memory shifting
+ * -Remember to remove all the unused linting (#![allow(dead_code)])
  */
 
 /**

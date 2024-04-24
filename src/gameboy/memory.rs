@@ -12,7 +12,7 @@ pub struct Memory {
     sram: [u8; 0x2000],         //8KB  -> A000h – BFFFh (External RAM in cartridge)
     wram_0: [u8; 0x1000],       //1KB  -> C000h – CFFFh (Work RAM)
     wram_x: [u8; 0x1000],       //1KB  -> D000h – DFFFh (Work RAM)
-    echo: [u8; 0x1E00],         //     -> E000h – FDFFh (ECHO RAM) Mirror of C000h-DDFFh
+    _echo: [u8; 0x1E00],         //     -> E000h – FDFFh (ECHO RAM) Mirror of C000h-DDFFh
     unused: [u8; 0x60],         //     -> FEA0h – FEFFh (Unused)
     joypad: Joypad,             //     -> FF00h         (Joypad)
     serial: SerialTransfer,     //     -> FF01h - FF02h (Serial Transfer)
@@ -32,7 +32,7 @@ impl Memory {
             sram: [0; 0x2000],        
             wram_0: [0; 0x1000],       
             wram_x: [0; 0x1000],   
-            echo: [0; 0x1E00],                 
+            _echo: [0; 0x1E00],                 
             unused: [0; 0x60],
             joypad: Joypad::new(),
             serial: SerialTransfer::new(),
@@ -205,7 +205,14 @@ impl Memory {
     }
 
     pub fn gpu_cycle(&mut self) {
-        self.ppu.cycle();
+        if let Some(pixel_color) = self.ppu.cycle() {
+            match pixel_color {
+                super::ppu::enums::PaletteColors::White => 0xFFFFFF,
+                super::ppu::enums::PaletteColors::LightGrey => 0xC0C0C0,
+                super::ppu::enums::PaletteColors::DarkGrey => 0x606060,
+                super::ppu::enums::PaletteColors::Black => 0x0,
+            };
+        }
 
         if self.ppu.vblank_interrupt_req {
             self.ppu.vblank_interrupt_req = false;

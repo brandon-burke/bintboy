@@ -22,8 +22,6 @@ pub const HRAM_START: u16 = 0xFF80;
 pub const HRAM_END: u16 = 0xFFFE;
 pub const INTERRUPT_ENABLE_START: u16 = 0xFFFF;
 
-pub const TIMER_START: u16 = 0xFF04;
-pub const TIMER_END: u16 = 0xFF07;
 pub const TIMER_DIV_REG: u16 = 0xFF04;
 pub const TIMER_TIMA_REG: u16 = 0xFF05;
 pub const TIMER_TMA_REG: u16 = 0xFF06;

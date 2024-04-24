@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub fn get_bit(value: u8, bit_position: u8) -> u8 {
     return (value >> bit_position) & 0x1;
 }

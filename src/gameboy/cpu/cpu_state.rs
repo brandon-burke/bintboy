@@ -6,6 +6,7 @@ pub enum CpuState {
     Halt,
 }
 
+#[allow(unused)]
 pub enum Status {
     Completed,
     Running,
