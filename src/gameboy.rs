@@ -65,14 +65,6 @@ impl Gameboy {
         .expect("Unable to create the window");
     
         window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
-    
-        while window.is_open() && !window.is_key_down(Key::Escape) {
-            let new_size = window.get_size();
-    
-            window
-                .update_with_buffer(&buffer, new_size.0, new_size.1)
-                .unwrap();
-        }
 
         while window.is_open() && !window.is_key_down(Key::Escape) {
             let new_size = window.get_size();
@@ -83,7 +75,7 @@ impl Gameboy {
             self.memory.gpu_cycle(&mut buffer, &mut buffer_index);
 
             if buffer_index == buff_max {
-                println!("buf max found");
+                //println!("buf max found");
                 buffer_index = 0;
 
                 window
@@ -102,6 +94,9 @@ impl Gameboy {
 
                     if self.cpu.b == 3 && self.cpu.c == 5 && self.cpu.d == 8 
                         && self.cpu.e == 13 && self.cpu.h == 21 && self.cpu.l == 34 {
+                            loop {
+                                
+                            }
                             return TestStatus::Pass;
                     }
                 }
@@ -127,6 +122,9 @@ impl Gameboy {
 
                 if blargg_buffer.len() == blargg_pass_value.len() {
                     if blargg_buffer == blargg_pass_value {
+                        loop {
+
+                        }
                         return TestStatus::Pass;
                     } else if blargg_buffer == blargg_failed_value {
                         return TestStatus::Failed;

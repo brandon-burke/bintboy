@@ -112,6 +112,10 @@ fn create_rom_file(file_path: &str) -> ([u8; 0x4000], [u8; 0x4000]) {
     let mut rom_file_1 = [0; 0x4000];
 
     for (i, byte) in file.bytes().enumerate() {
+        if i == 16384 {
+            break;
+        }
+
         if i < 0x4000 {
             rom_file_0[i] = match byte {
                 Ok(value) => value,
@@ -124,5 +128,9 @@ fn create_rom_file(file_path: &str) -> ([u8; 0x4000], [u8; 0x4000]) {
             };
         }
     }
+
+    println!("|{}|", rom_file_0[0x147]);
+    println!("|{}|", rom_file_0[0x148]);
+
     return (rom_file_0, rom_file_1);
 }
