@@ -21,6 +21,12 @@ enum Commands {
 
     /// Will take in a directory path and will run all .gb rom test files in it
     D { path: String },
+
+    /// Will take in a single file path to a .gb rom test file. Blargg tests
+    FB { path: String },
+
+    /// Will take in a directory path and will run all .gb rom test files in it. Blargg tests
+    DB { path: String },
 }
 
 /**
@@ -42,38 +48,58 @@ fn main() {
     let args = Cli::parse();
 
     match args.cmd {
-        Commands::F { path } => {
-            let (rom_file_0, rom_file_1) = create_rom_file(&path);
+        Commands::F { path } => single_test_rom_run(&path, false),
+        Commands::D { path } => multiple_test_rom_run(&path, false),
+        Commands::FB { path } => single_test_rom_run(&path, true),
+        Commands::DB { path } => multiple_test_rom_run(&path, true),
+    }
+}
+
+fn single_test_rom_run(path: &str, is_blargg_test: bool) {
+    let (rom_file_0, rom_file_1) = create_rom_file(path);
+    let mut gameboy = Gameboy::new();
+    println!("Running Test {}", path);
+    match gameboy.run(rom_file_0, rom_file_1, is_blargg_test) {
+        gameboy::TestStatus::Pass => println!("Pass"),
+        gameboy::TestStatus::Failed => println!("Failed"),
+    };
+}
+
+fn multiple_test_rom_run(path: &str, is_blargg_test: bool) {
+    let paths = fs::read_dir(path).unwrap();
+    let mut tests = vec![];
+    for path in paths {
+        let path = path.unwrap().path();
+        if path.is_file() && path.extension().unwrap() == "gb" {
+            println!("Reading {}", &path.display().to_string());
+            let (rom_file_0, rom_file_1) = create_rom_file(&path.display().to_string());
             let mut gameboy = Gameboy::new();
-            println!("Running Test {}", path);
-            match gameboy.run(rom_file_0, rom_file_1) {
-                gameboy::TestStatus::Pass => println!("Pass"),
-                gameboy::TestStatus::Failed => println!("Failed"),
+
+            let result = match gameboy.run(rom_file_0, rom_file_1, is_blargg_test) {
+                gameboy::TestStatus::Pass => "Pass",
+                gameboy::TestStatus::Failed => "Failed",
             };
-        },
-        Commands::D { path } => {
-            let paths = fs::read_dir(path).unwrap();
-            let mut tests = vec![];
-            for path in paths {
-                let path = path.unwrap().path();
-                if path.is_file() && path.extension().unwrap() == "gb" {
-                    println!("Reading {}", &path.display().to_string());
-                    let (rom_file_0, rom_file_1) = create_rom_file(&path.display().to_string());
-                    let mut gameboy = Gameboy::new();
-        
-                    let result = match gameboy.run(rom_file_0, rom_file_1) {
-                        gameboy::TestStatus::Pass => "Pass",
-                        gameboy::TestStatus::Failed => "Failed",
-                    };
-        
-                    tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
-                }
-            }
-    
-            for (test, status) in tests {
-                println!("{}: {}", test, status);
-            }
-        },
+
+            tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
+        }
+    }
+
+    let mut num_of_failures = 0;
+    for (test, status) in tests {
+        if status == "Failed" {
+            num_of_failures += 1;
+        }
+        println!("{}: {}", test, status);
+    }
+
+    if num_of_failures == 0 {
+        println!("\n*** ALL TESTS PASSED ***")
+    } else {
+        if num_of_failures == 1 {
+            println!("\n*** {num_of_failures} TEST FAILURE ***");
+        } else {
+            println!("\n*** {num_of_failures} TESTS FAILURES ***");
+        }
     }
 }
 

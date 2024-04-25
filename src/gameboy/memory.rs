@@ -204,14 +204,15 @@ impl Memory {
         }
     }
 
-    pub fn gpu_cycle(&mut self) {
+    pub fn gpu_cycle(&mut self, buffer: &mut Vec<u32>, buffer_index: &mut usize) {
         if let Some(pixel_color) = self.ppu.cycle() {
-            match pixel_color {
+            buffer[*buffer_index] = match pixel_color {
                 super::ppu::enums::PaletteColors::White => 0xFFFFFF,
                 super::ppu::enums::PaletteColors::LightGrey => 0xC0C0C0,
                 super::ppu::enums::PaletteColors::DarkGrey => 0x606060,
                 super::ppu::enums::PaletteColors::Black => 0x0,
             };
+            *buffer_index += 1;
         }
 
         if self.ppu.vblank_interrupt_req {

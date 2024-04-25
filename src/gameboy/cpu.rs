@@ -46,7 +46,7 @@ impl Cpu {
         }
     }
 
-    pub fn cycle(&mut self, memory: &mut Memory) {
+    pub fn cycle(&mut self, memory: &mut Memory, is_blargg_test: bool) {
         /* Have to wait 1 machine cycle before we do anywork */
         self.cpu_clk_cycles += 1;
         if self.cpu_clk_cycles >= MACHINE_CYCLE {
@@ -68,7 +68,7 @@ impl Cpu {
                     println!("STOP");
                 }
 
-                if self.current_opcode == 0x40 {
+                if self.current_opcode == 0x40 && !is_blargg_test {
                     dbg!(&self);
                 }
                 
