@@ -72,7 +72,9 @@ impl Gameboy {
             self.memory.timer_cycle();
             self.memory.dma_cycle();
 
-            self.memory.gpu_cycle(&mut buffer, &mut buffer_index);
+            if self.memory.ppu.is_active() {
+                self.memory.gpu_cycle(&mut buffer, &mut buffer_index);
+            }
 
             if buffer_index == buff_max {
                 //println!("buf max found");
@@ -89,14 +91,13 @@ impl Gameboy {
                 if self.cpu.current_opcode == 0x40 && !is_blargg_test {
                     if self.cpu.b == 66 && self.cpu.c == 66 && self.cpu.d == 66 
                         && self.cpu.e == 66 && self.cpu.h == 66 && self.cpu.l == 66 {
+                            println!("Failed");
                         return TestStatus::Failed;
                     }
 
                     if self.cpu.b == 3 && self.cpu.c == 5 && self.cpu.d == 8 
                         && self.cpu.e == 13 && self.cpu.h == 21 && self.cpu.l == 34 {
-                            loop {
-                                
-                            }
+                            println!("Pass");
                             return TestStatus::Pass;
                     }
                 }
@@ -108,9 +109,9 @@ impl Gameboy {
                 _ => (),
             }        
     
-            if self.memory.read_byte(0xff02) == 0x81 && is_blargg_test{
+            if self.memory.read_byte(0xff02) == 0x81 && is_blargg_test {
                 let byte = self.memory.read_byte(0xff01);
-                //print!("{}", byte as char);
+                print!("{}", byte as char);
 
                 if (byte as char == 'P' || byte as char == 'F') && !start_caring { 
                     start_caring = true; 
@@ -122,9 +123,6 @@ impl Gameboy {
 
                 if blargg_buffer.len() == blargg_pass_value.len() {
                     if blargg_buffer == blargg_pass_value {
-                        loop {
-
-                        }
                         return TestStatus::Pass;
                     } else if blargg_buffer == blargg_failed_value {
                         return TestStatus::Failed;

@@ -9,12 +9,12 @@ use self::enums::{PaletteColors, PpuMode, SpritePriority, SpriteScanlineVisibili
 use self::tile_and_sprite::*;
 use crate::gameboy::constants::*;
 pub struct Ppu {
-    tile_data_0: [Tile; 128],       //$8000–$87FF
-    tile_data_1: [Tile; 128],       //$8800–$8FFF
-    tile_data_2: [Tile; 128],       //$9000–$97FF
-    tile_map_0: [u8; 0x400],        //$9800-$9BFF
-    tile_map_1: [u8; 0x400],        //$9C00-$9FFF
-    oam: [Sprite; 40],              //$FE00–$FE9F (Object Attribute Table) Sprite information table
+    pub tile_data_0: [Tile; 128],       //$8000–$87FF
+    pub tile_data_1: [Tile; 128],       //$8800–$8FFF
+    pub tile_data_2: [Tile; 128],       //$9000–$97FF
+    pub tile_map_0: [u8; 0x400],        //$9800-$9BFF
+    pub tile_map_1: [u8; 0x400],        //$9C00-$9FFF
+    pub oam: [Sprite; 40],              //$FE00–$FE9F (Object Attribute Table) Sprite information table
     ppu_registers: PpuRegisters,    //Houses all ppu registers
     clk_ticks: u16,                 //How many cpu ticks have gone by
     visible_sprites: Vec<Sprite>,   //Visible Sprites on current scanline
@@ -92,6 +92,7 @@ impl Ppu {
                 }
 
                 if self.penalty > 0 {
+                    println!("there's a penalty");
                     self.penalty -= 1;
                 } else {
                     //Clearing fifo if were doing a transition from bg to win or vice versa
@@ -328,10 +329,12 @@ impl Ppu {
         let tile_idx = (address - TILE_DATA_0_START) / 16;
         let byte_idx = (address - TILE_DATA_0_START) - (tile_idx * 16);
         let tile_row_idx = byte_idx / 2;
+        let lower_or_upper_byte = byte_idx % 2;
 
-        match byte_idx % 2 {
+        match lower_or_upper_byte {
             0 => self.tile_data_0[tile_idx as usize].pixel_rows[tile_row_idx as usize].lower_bits = value,
-            _ => self.tile_data_0[tile_idx as usize].pixel_rows[tile_row_idx as usize].upper_bits = value,
+            1 => self.tile_data_0[tile_idx as usize].pixel_rows[tile_row_idx as usize].upper_bits = value,
+            _ => panic!("This isn't possible bro"),
         }
     }
 

@@ -17,7 +17,7 @@ pub struct Memory {
     joypad: Joypad,             //     -> FF00h         (Joypad)
     serial: SerialTransfer,     //     -> FF01h - FF02h (Serial Transfer)
     timer: Timer,               //     -> FF04h - FF07h
-    ppu: Ppu,                   //Pixel Processing Unit. Houses most of the graphics related memory
+    pub ppu: Ppu,                   //Pixel Processing Unit. Houses most of the graphics related memory
     dma: Dma,                   //     -> FF46h OAM DMA source address register
     io: [u8; 0x80],             //     -> FF00h – FF7Fh (I/O ports)
     pub interrupt_handler: InterruptHandler, //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
@@ -55,7 +55,7 @@ impl Memory {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize],
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize],
             VRAM_START ..= VRAM_END => {
-                if self.ppu.current_mode() != PpuMode::DrawingPixels  {
+                if self.ppu.current_mode() != PpuMode::DrawingPixels || !self.ppu.is_active() {
                     match address {
                         TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.read_tile_data_0(address),
                         TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.read_tile_data_1(address),
@@ -129,7 +129,7 @@ impl Memory {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize] = data_to_write,
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize] = data_to_write,
             VRAM_START ..= VRAM_END => {
-                if self.ppu.current_mode() != PpuMode::DrawingPixels  {
+                if self.ppu.current_mode() != PpuMode::DrawingPixels || !self.ppu.is_active() {
                     match address {
                         TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.write_tile_data_0(address, data_to_write),
                         TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.write_tile_data_1(address, data_to_write),

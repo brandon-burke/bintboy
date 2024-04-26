@@ -55,9 +55,27 @@ impl Cpu {
             return;
         }
 
+        
+        // if self.pc == 0xC7D2 {
+        //     println!("made it");
+        //     //dbg!(&self);
+        //     // loop {
+                
+        //     // }
+        // }
+
         //Depending on what state you are in you have to do the work that corresponds to it
         match self.cpu_state.clone() {
             CpuState::Fetch => {
+                if self.pc == 0xC3F3 {
+                    println!("At 0xC3F3");
+                }
+
+                if self.pc == 0xC3F8 {
+                    println!("At 0xC3F8");
+                }
+
+
                 self.current_opcode = self.fetch(memory);
 
                 if self.current_opcode == 0x76 {
@@ -71,6 +89,8 @@ impl Cpu {
                 if self.current_opcode == 0x40 && !is_blargg_test {
                     dbg!(&self);
                 }
+
+                
                 
                 if self.current_opcode == PREFIX_OPCODE {
                     self.cpu_state = CpuState::FetchPrefix;

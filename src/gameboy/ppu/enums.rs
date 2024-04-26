@@ -1,4 +1,4 @@
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SpritePriority{
     OverBg,     //Sprite should draw over background and window
     UnderBg,    //Background and window colors 1-3 are drawn over the Sprite
@@ -6,14 +6,14 @@ pub enum SpritePriority{
 
 
 /* Represents whether a sprite is mirrored or not */
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Orientation {
     Normal,
     Mirrored,
 }
 
 /* Represents the options for a palette that a sprite can use */
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SpritePalette {
     Obp0,
     Obp1,
@@ -25,20 +25,20 @@ pub enum SpritePalette {
     Obp7,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum VramBank {
     Bank0,
     Bank1,
 }
 
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum State {
-    On,
     Off,
+    On,
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum TileMapArea {
     _9800_9BFF,
     _9C00_9FFF,
@@ -49,7 +49,7 @@ pub enum TileDataArea {
     _8000_8FFF,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum SpriteSize {
     _8x8,
     _8x16,
@@ -64,7 +64,7 @@ pub enum PpuMode {
 }
 
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum PaletteColors {
     White,      //0
     LightGrey,  //1

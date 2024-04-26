@@ -1,7 +1,7 @@
 mod gameboy;
 use crate::gameboy::Gameboy;
 
-use std::fs;
+use std:: fs;
 use std::fs::File;
 use std::io::Read;
 
@@ -45,6 +45,8 @@ enum Commands {
  * that specify what gameboy rom to run
  */
 fn main() {
+    let args = std::env::args();
+    println!("{:?}", args);
     let args = Cli::parse();
 
     match args.cmd {
@@ -112,9 +114,9 @@ fn create_rom_file(file_path: &str) -> ([u8; 0x4000], [u8; 0x4000]) {
     let mut rom_file_1 = [0; 0x4000];
 
     for (i, byte) in file.bytes().enumerate() {
-        if i == 16384 {
-            break;
-        }
+        // if i == 16384 {
+        //     break;
+        // }
 
         if i < 0x4000 {
             rom_file_0[i] = match byte {
@@ -129,8 +131,9 @@ fn create_rom_file(file_path: &str) -> ([u8; 0x4000], [u8; 0x4000]) {
         }
     }
 
-    println!("|{}|", rom_file_0[0x147]);
-    println!("|{}|", rom_file_0[0x148]);
+    println!("MBC type |{}|", rom_file_0[0x147]);
+    println!("ROM size|{}|", rom_file_0[0x148]);
+    println!("RAM size|{}|", rom_file_0[0x149]);
 
     return (rom_file_0, rom_file_1);
 }
