@@ -42,6 +42,8 @@ impl Gameboy {
         let blargg_pass_value = "Passed";
         let blargg_failed_value = "Failed";
         let mut start_caring = false;
+        let mut passing_clk_ticks = 0;
+        let mut stupid = false;
 
         //Loading rom into memory. Note we're probably going to need to add some
         //Logic to load roms with higher capacities because this just does a 32k
@@ -67,6 +69,13 @@ impl Gameboy {
         window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
         while window.is_open() && !window.is_key_down(Key::Escape) {
+            if passing_clk_ticks > 0 {
+                passing_clk_ticks -= 1;
+                if passing_clk_ticks == 0 {
+                    return TestStatus::Pass;
+                }
+            }
+
             let new_size = window.get_size();
 
             self.memory.timer_cycle();
@@ -89,16 +98,16 @@ impl Gameboy {
                 self.cpu.cycle(&mut self.memory, is_blargg_test);
 
                 if self.cpu.current_opcode == 0x40 && !is_blargg_test {
-                    if self.cpu.b == 66 && self.cpu.c == 66 && self.cpu.d == 66 
+                    if self.cpu.b == 66 && self.cpu.c == 66 && self.cpu.d == 66
                         && self.cpu.e == 66 && self.cpu.h == 66 && self.cpu.l == 66 {
-                            println!("Failed");
+
                         return TestStatus::Failed;
                     }
 
-                    if self.cpu.b == 3 && self.cpu.c == 5 && self.cpu.d == 8 
+                    if self.cpu.b == 3 && self.cpu.c == 5 && self.cpu.d == 8
                         && self.cpu.e == 13 && self.cpu.h == 21 && self.cpu.l == 34 {
-                            println!("Pass");
-                            return TestStatus::Pass;
+
+                        return TestStatus::Pass;
                     }
                 }
             }
@@ -112,15 +121,15 @@ impl Gameboy {
             if self.memory.read_byte(0xff02) == 0x81 && is_blargg_test {
                 let byte = self.memory.read_byte(0xff01);
                 print!("{}", byte as char);
-            
+
                 if (byte as char == 'P' || byte as char == 'F') && !start_caring {
                     start_caring = true;
                 }
-            
+
                 if start_caring {
                     blargg_buffer.push(byte as char);
                 }
-            
+
                 if blargg_buffer.len() == blargg_pass_value.len() {
                     if blargg_buffer == blargg_pass_value {
                         return TestStatus::Pass;
@@ -130,7 +139,7 @@ impl Gameboy {
                         panic!("ERROR: |{blargg_buffer}|");
                     }
                 }
-            
+
                 self.memory.write_byte(0xff02, 0);
             }
         }

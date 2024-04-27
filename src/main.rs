@@ -57,6 +57,12 @@ fn main() {
     }
 }
 
+/* This is the entry point for the Game Boy emulator */
+fn start_emulator() {
+    
+}
+
+
 fn single_test_rom_run(path: &str, is_blargg_test: bool) {
     let (rom_file_0, rom_file_1) = create_rom_file(path);
     let mut gameboy = Gameboy::new();
@@ -114,10 +120,6 @@ fn create_rom_file(file_path: &str) -> ([u8; 0x4000], [u8; 0x4000]) {
     let mut rom_file_1 = [0; 0x4000];
 
     for (i, byte) in file.bytes().enumerate() {
-        // if i == 16384 {
-        //     break;
-        // }
-
         if i < 0x4000 {
             rom_file_0[i] = match byte {
                 Ok(value) => value,
@@ -137,3 +139,18 @@ fn create_rom_file(file_path: &str) -> ([u8; 0x4000], [u8; 0x4000]) {
 
     return (rom_file_0, rom_file_1);
 }
+
+
+#[cfg(test)]
+mod tests {
+
+    /*
+        This will run all the blargg test ROMs individually, which are each 32KB in size. This test
+        is helpful when your Game Boy emulator can only support ROMs up to 32KB.
+    */
+    #[test]
+    fn run_individual_blargg_roms() {
+
+    }
+}
+
