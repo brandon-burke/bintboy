@@ -16,6 +16,9 @@ use crate::gameboy::cpu::{Cpu, cpu_state};
 use crate::gameboy::memory::Memory;
 use crate::rom::Rom;
 
+const WIDTH: usize = 160;
+const HEIGHT: usize = 144;
+
 pub struct Gameboy {
     cpu: Cpu,
     memory: Memory,
@@ -46,25 +49,11 @@ impl Gameboy {
      * rom file for it to run
      */
     pub fn run(&mut self) {
-        const WIDTH: usize = 160;
-        const HEIGHT: usize = 144;
         let mut buffer = vec![0u32; WIDTH * HEIGHT];
         let mut buffer_index: usize = 0;
         let buff_max = WIDTH * HEIGHT;
-        let mut window = Window::new(
-            "Noise Test - Press ESC to exit",
-            WIDTH,
-            HEIGHT,
-            WindowOptions {
-                resize: true,
-                scale_mode: ScaleMode::UpperLeft,
-                ..WindowOptions::default()
-            },
-        )
-        .expect("Unable to create the window");
-    
-        window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
-
+        let mut window = Self::initialize_window();
+        
         while window.is_open() && !window.is_key_down(Key::Escape) {
             let new_size = window.get_size();
 
@@ -89,6 +78,24 @@ impl Gameboy {
                 _ => (),
             }     
         }
+    }
+
+    fn initialize_window() -> Window {
+        let mut window = Window::new(
+            "Noise Test - Press ESC to exit",
+            WIDTH,
+            HEIGHT,
+            WindowOptions {
+                resize: true,
+                scale_mode: ScaleMode::UpperLeft,
+                ..WindowOptions::default()
+            },
+        )
+            .expect("Unable to create the window");
+
+        window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+
+        return window;
     }
 }
 

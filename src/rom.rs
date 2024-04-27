@@ -10,6 +10,29 @@ impl Rom {
         }
     }
 
+    pub fn cartridge_type(&self) -> u8 {
+        return self.banks[0][0x147];
+    }
+
+    pub fn rom_size(&self) -> u8 {
+        return self.banks[0][0x148];
+    }
+
+    pub fn num_of_banks(&self) -> u8 {
+        match self.banks[0][0x148] {
+            0x0 => 2,
+            0x1 => 4,
+            0x2 => 8,
+            0x3 => 16,
+            0x4 => 32,
+            0x5 => 64,
+            0x6 => 128,
+            0x7 => 256,
+            0x8 => 512,
+            _ => panic!("Error unsupported number of banks")
+        }
+    }
+
     /**
      * Takes a file path to a Game Boy rom file and loads it into the rom struct.
      * This will separate the rom into 16KB banks.
@@ -43,4 +66,8 @@ impl Rom {
             }
         }
     }
+}
+
+enum RomSize {
+    _32KB ()
 }

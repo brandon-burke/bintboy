@@ -22,6 +22,10 @@ pub struct Memory {
     io: [u8; 0x80],             //     -> FF00h – FF7Fh (I/O ports)
     pub interrupt_handler: InterruptHandler, //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
     hram: [u8; 0x7F],           //     -> FF80h – FFFEh (HRAM)
+    ram_enable_reg: bool,
+    ram_bank_num_reg: u8,
+    rom_bank_num_reg: u8,
+    banking_mode_sel_reg: u8,
 }
 
 impl Memory {
@@ -41,7 +45,11 @@ impl Memory {
             io: [0; 0x80],
             interrupt_handler: InterruptHandler::new(),
             dma: Dma::new(),
-            hram: [0; 0x7F],            
+            hram: [0; 0x7F],
+            ram_enable_reg: false,
+            ram_bank_num_reg: 0,
+            rom_bank_num_reg: 0,
+            banking_mode_sel_reg: 0,
         }
     }
 
@@ -126,8 +134,12 @@ impl Memory {
         }
 
         match address {
-            ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize] = data_to_write,
-            ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize] = data_to_write,
+            RAM_ENABLE_START ..= RAM_ENABLE_END => self.ram_enable_reg = (data_to_write & 0xF) == 0xA,
+            ROM_BANK_NUM_START ..= ROM_BANK_NUM_END => {
+                let bank_size = 
+                self.rom_bank_num_reg = (data_to_write & 0x1F) | 0x1
+                
+            },
             VRAM_START ..= VRAM_END => {
                 if self.ppu.current_mode() != PpuMode::DrawingPixels || !self.ppu.is_active() {
                     match address {
