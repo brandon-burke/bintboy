@@ -1,8 +1,6 @@
 mod gameboy;
 mod rom;
 
-use std::{fs::File, io::Read};
-
 use crate::gameboy::Gameboy;
 use clap::Parser;
 
@@ -41,6 +39,8 @@ fn start_emulator(rom_file_path: &str) {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use crate::start_emulator;
 
     /*
         This will run all the blargg test ROMs individually, which are each 32KB in size. This test
@@ -48,7 +48,70 @@ mod tests {
     */
     #[test]
     fn run_individual_blargg_roms() {
+        let path = "test_roms/individual/";
+        let paths = fs::read_dir(path).unwrap();
+        //let mut tests = vec![];
+        for path in paths {
+            let path = path.unwrap().path();
+            if path.is_file() && path.extension().unwrap() == "gb" {
+                println!("Reading {}", &path.display().to_string());
+                start_emulator(&path.display().to_string());
+                //tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
+            }
+        }
+    
+        // let mut num_of_failures = 0;
+        // for (test, status) in tests {
+        //     if status == "Failed" {
+        //         num_of_failures += 1;
+        //     }
+        //     println!("{}: {}", test, status);
+        // }
+    
+        // if num_of_failures == 0 {
+        //     println!("\n*** ALL TESTS PASSED ***")
+        // } else {
+        //     if num_of_failures == 1 {
+        //         println!("\n*** {num_of_failures} TEST FAILURE ***");
+        //     } else {
+        //         println!("\n*** {num_of_failures} TESTS FAILURES ***");
+        //     }
+        // }
+        
+    }
 
+    #[test]
+    fn run_individual_mooneye_roms() {
+        let path = "test_roms/acceptance/bits";
+        let paths = fs::read_dir(path).unwrap();
+        //let mut tests = vec![];
+        for path in paths {
+            let path = path.unwrap().path();
+            if path.is_file() && path.extension().unwrap() == "gb" {
+                println!("Reading {}", &path.display().to_string());
+                start_emulator(&path.display().to_string());
+                //tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
+            }
+        }
+    
+        // let mut num_of_failures = 0;
+        // for (test, status) in tests {
+        //     if status == "Failed" {
+        //         num_of_failures += 1;
+        //     }
+        //     println!("{}: {}", test, status);
+        // }
+    
+        // if num_of_failures == 0 {
+        //     println!("\n*** ALL TESTS PASSED ***")
+        // } else {
+        //     if num_of_failures == 1 {
+        //         println!("\n*** {num_of_failures} TEST FAILURE ***");
+        //     } else {
+        //         println!("\n*** {num_of_failures} TESTS FAILURES ***");
+        //     }
+        // }
+        
     }
 }
 

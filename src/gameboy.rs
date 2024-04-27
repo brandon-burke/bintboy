@@ -46,13 +46,6 @@ impl Gameboy {
      * rom file for it to run
      */
     pub fn run(&mut self) {
-        let mut blargg_buffer = "".to_string();
-        let blargg_pass_value = "Passed";
-        let blargg_failed_value = "Failed";
-        let mut start_caring = false;
-        let mut passing_clk_ticks = 0;
-        let mut stupid = false;
-
         const WIDTH: usize = 160;
         const HEIGHT: usize = 144;
         let mut buffer = vec![0u32; WIDTH * HEIGHT];
@@ -95,31 +88,6 @@ impl Gameboy {
                 cpu_state::CpuState::Fetch => self.memory.interrupt_cycle(&mut self.cpu.pc, &mut self.cpu.sp),
                 _ => (),
             }     
-
-            if self.memory.read_byte(0xff02) == 0x81 {
-                let byte = self.memory.read_byte(0xff01);
-                print!("{}", byte as char);
-
-                // if (byte as char == 'P' || byte as char == 'F') && !start_caring { 
-                //     start_caring = true; 
-                // }
-
-                // if start_caring {
-                //     blargg_buffer.push(byte as char);
-                // }
-
-                // if blargg_buffer.len() == blargg_pass_value.len() {
-                //     if blargg_buffer == blargg_pass_value {
-                        
-                //     } else if blargg_buffer == blargg_failed_value {
-                        
-                //     } else {
-                //         panic!("ERROR: |{blargg_buffer}|");
-                //     }
-                // }
-
-                self.memory.write_byte(0xff02, 0);
-            }   
         }
     }
 }
