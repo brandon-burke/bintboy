@@ -112,15 +112,15 @@ impl Gameboy {
             if self.memory.read_byte(0xff02) == 0x81 && is_blargg_test {
                 let byte = self.memory.read_byte(0xff01);
                 print!("{}", byte as char);
-
-                if (byte as char == 'P' || byte as char == 'F') && !start_caring { 
-                    start_caring = true; 
+            
+                if (byte as char == 'P' || byte as char == 'F') && !start_caring {
+                    start_caring = true;
                 }
-
+            
                 if start_caring {
                     blargg_buffer.push(byte as char);
                 }
-
+            
                 if blargg_buffer.len() == blargg_pass_value.len() {
                     if blargg_buffer == blargg_pass_value {
                         return TestStatus::Pass;
@@ -130,7 +130,7 @@ impl Gameboy {
                         panic!("ERROR: |{blargg_buffer}|");
                     }
                 }
-
+            
                 self.memory.write_byte(0xff02, 0);
             }
         }

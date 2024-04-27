@@ -61,6 +61,7 @@ pub const SERIAL_SC_REG: u16 = 0xFF02;
 pub const MACHINE_CYCLE: u8 = 4;
 pub const PREFIX_OPCODE: u8 = 0xCB;
 pub const MAX_SCANLINE_CLK_TICKS: u16 = 456;
+pub const MAX_DRAWING_AND_HBLANK_TICKS: u16 = 376;
 pub const MAX_LY_VALUE: u8 = 153;
 
 //Constants that are just zero

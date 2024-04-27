@@ -7,7 +7,7 @@ use super::{enums::{Orientation, SpritePalette, SpritePriority, SpriteSize, Stat
  * necessary to fetch sprite, bg, and window pixels
  */
 pub struct PixelFetcher {
-    x_coordinate: u8,           //Gives the x TILE coordinate on the 32x32 tile map. Value between 0-31
+    pub x_coordinate: u8,           //Gives the x TILE coordinate on the 32x32 tile map. Value between 0-31
     drawing_window: bool,       //Lets us know if we are rendering the window
 }
 
@@ -33,8 +33,6 @@ impl PixelFetcher {
         //Getting all info to index into the tile map and tile data map
         let tile_map_x_coord = ((ppu_registers.scx / 8) + self.x_coordinate) & 0x1F;
         let tile_map_y_coord = ppu_registers.ly.wrapping_add(ppu_registers.scy);//(ppu_registers.ly + ppu_registers.scy) & 255;
-        //dbg!(tile_map_x_coord);
-        //dbg!(tile_map_y_coord);
         let tile_map_idx = tile_map_x_coord as u16 + ((tile_map_y_coord as u16 / 8) * 32);
         let tile_data_idx = tile_map[tile_map_idx as usize];
 

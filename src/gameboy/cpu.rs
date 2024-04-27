@@ -58,10 +58,18 @@ impl Cpu {
         
         // if self.pc == 0xC7D2 {
         //     println!("made it");
-        //     //dbg!(&self);
-        //     // loop {
-                
-        //     // }
+        //     dbg!(&self);
+        //     loop {
+        //
+        //     }
+        // }
+
+        // if self.pc == 0xCB35 {
+        //     println!("made it");
+        //     // dbg!(&self);
+        //     loop {
+        // 
+        //     }
         // }
 
         //Depending on what state you are in you have to do the work that corresponds to it

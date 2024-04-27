@@ -51,12 +51,10 @@ impl Ppu {
 
     pub fn cycle(&mut self) -> Option<PaletteColors> {
         self.clk_ticks += 1;    //Keeps track of how many ticks during a mode
-        // dbg!(self.current_mode());
-        // dbg!(self.clk_ticks);
-        // dbg!(self.ppu_registers.ly);
 
         match self.current_mode() {
             PpuMode::OamScan => {   //Mode 2
+                
                 //Finding up to 10 sprites that overlap the current scanline (ly)
                 //We're mimicking that it takes 80 clks to do this
                 if self.clk_ticks == 80 {
@@ -88,11 +86,13 @@ impl Ppu {
                 if self.clk_ticks == 1 {
                     self.sprite_fifo.clear();
                     self.bg_window_fifo.clear();
-                    self.initial_pixel_shift = self.ppu_registers.scx % 8;
+                    self.pixel_fetcher.x_coordinate = 0;
+                    //self.initial_pixel_shift = self.ppu_registers.scx % 8;
+                    self.penalty = 12;
                 }
 
                 if self.penalty > 0 {
-                    println!("there's a penalty");
+                    //println!("there's a penalty");
                     self.penalty -= 1;
                 } else {
                     //Clearing fifo if were doing a transition from bg to win or vice versa
@@ -122,7 +122,6 @@ impl Ppu {
                                                                                         tile_map, 
                                                                                         tile_data_map.0, 
                                                                                         tile_data_map.1);
-
                         self.bg_window_fifo.append(&mut fetched_pixel_row);
                     }
 
@@ -197,7 +196,7 @@ impl Ppu {
                         },
                     };
 
-                    //Adjusting for initial pizel shifting
+                    //Adjusting for initial pixel shifting
                     let mut pixel = Some(final_pixel_color);
                     if self.initial_pixel_shift > 0 {
                         self.initial_pixel_shift -= 1;
@@ -215,7 +214,7 @@ impl Ppu {
                 }
             },
             PpuMode::Hblank =>  {   //mode 0
-                if self.clk_ticks == MAX_SCANLINE_CLK_TICKS {
+                if self.clk_ticks == MAX_DRAWING_AND_HBLANK_TICKS {
                     self.clk_ticks = 0;
                     self.ppu_registers.inc_ly_reg();
 
