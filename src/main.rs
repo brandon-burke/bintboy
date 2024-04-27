@@ -59,7 +59,10 @@ fn main() {
 
 /* This is the entry point for the Game Boy emulator */
 fn start_emulator() {
-    
+    let mut gameboy = Gameboy::new();
+
+
+
 }
 
 
@@ -109,6 +112,53 @@ fn multiple_test_rom_run(path: &str, is_blargg_test: bool) {
             println!("\n*** {num_of_failures} TESTS FAILURES ***");
         }
     }
+}
+
+struct Rom {
+    banks: Vec<RomBank>
+}
+
+impl Rom {
+    fn new(file_path: &str) -> Self {
+        let file = File::open(file_path).expect("File not found");
+        let mut rom_file_0 = [0; 0x4000];
+        let mut rom_file_1 = [0; 0x4000];
+
+        let mut byte_count = 0;
+        let mut bank_num = 0;
+        for byte in file.bytes() {
+
+
+            if byte_count < 0x4000 {
+
+            } else {
+                byte_count = 0;
+            }
+
+
+            if i < 0x4000 {
+                rom_file_0[i] = match byte {
+                    Ok(value) => value,
+                    Err(e) => panic!("Error: {}", e),
+                };
+            } else {
+                rom_file_1[i - 0x4000] = match byte {
+                    Ok(value) => value,
+                    Err(e) => panic!("Error: {}", e),
+                };
+            }
+        }
+
+        println!("MBC type |{}|", rom_file_0[0x147]);
+        println!("ROM size|{}|", rom_file_0[0x148]);
+        println!("RAM size|{}|", rom_file_0[0x149]);
+
+        return (rom_file_0, rom_file_1);
+    }
+}
+
+struct RomBank {
+    bank: [u8; 0x4000]
 }
 
 /**
