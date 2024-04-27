@@ -46,7 +46,7 @@ impl Cpu {
         }
     }
 
-    pub fn cycle(&mut self, memory: &mut Memory, is_blargg_test: bool) {
+    pub fn cycle(&mut self, memory: &mut Memory) {
         /* Have to wait 1 machine cycle before we do anywork */
         self.cpu_clk_cycles += 1;
         if self.cpu_clk_cycles >= MACHINE_CYCLE {
@@ -55,35 +55,9 @@ impl Cpu {
             return;
         }
 
-        
-        // if self.pc == 0xC7D2 {
-        //     println!("made it");
-        //     dbg!(&self);
-        //     loop {
-        //
-        //     }
-        // }
-
-        // if self.pc == 0xCB35 {
-        //     println!("made it");
-        //     // dbg!(&self);
-        //     loop {
-        // 
-        //     }
-        // }
-
         //Depending on what state you are in you have to do the work that corresponds to it
         match self.cpu_state.clone() {
             CpuState::Fetch => {
-                if self.pc == 0xC3F3 {
-                    println!("At 0xC3F3");
-                }
-
-                if self.pc == 0xC3F8 {
-                    println!("At 0xC3F8");
-                }
-
-
                 self.current_opcode = self.fetch(memory);
 
                 if self.current_opcode == 0x76 {
@@ -93,13 +67,7 @@ impl Cpu {
                 if self.current_opcode == 0x10 {
                     println!("STOP");
                 }
-
-                if self.current_opcode == 0x40 && !is_blargg_test {
-                    dbg!(&self);
-                }
-
-                
-                
+    
                 if self.current_opcode == PREFIX_OPCODE {
                     self.cpu_state = CpuState::FetchPrefix;
                 } else {

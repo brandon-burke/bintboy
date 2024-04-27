@@ -14,30 +14,38 @@ use minifb::{Key, ScaleMode, Window, WindowOptions};
 
 use crate::gameboy::cpu::{Cpu, cpu_state};
 use crate::gameboy::memory::Memory;
-
-pub enum TestStatus {
-    Pass,
-    Failed,
-}
+use crate::rom::Rom;
 
 pub struct Gameboy {
     cpu: Cpu,
     memory: Memory,
+    rom: Rom,
 }
 
 impl Gameboy {
     pub fn new() -> Self {
         Gameboy { 
             cpu: Cpu::new(), 
-            memory: Memory::new(), 
+            memory: Memory::new(),
+            rom: Rom::new(),
         }
+    }
+
+    /**
+     * This will load the game data from a file into the gameboy. As well
+     * load the ROM memory region(0x0000 - 0x7FFF) on the game boy with the 
+     * first 16KB banks of the game data.
+     */
+    pub fn load_rom(&mut self, rom_file_path: &str) {
+        self.rom.load_rom(rom_file_path);
+        self.memory.copy_game_data_to_rom(self.rom.banks[0], self.rom.banks[1]);
     }
 
     /**
      * This is the starting point for the gameboy. You just need to give it a 
      * rom file for it to run
      */
-    pub fn run(&mut self, rom_0: [u8; 0x4000], rom_1: [u8; 0x4000], is_blargg_test: bool) -> TestStatus {
+    pub fn run(&mut self) {
         let mut blargg_buffer = "".to_string();
         let blargg_pass_value = "Passed";
         let blargg_failed_value = "Failed";
@@ -45,10 +53,6 @@ impl Gameboy {
         let mut passing_clk_ticks = 0;
         let mut stupid = false;
 
-        //Loading rom into memory. Note we're probably going to need to add some
-        //Logic to load roms with higher capacities because this just does a 32k
-        self.memory.load_rom(rom_0, rom_1);
-    
         const WIDTH: usize = 160;
         const HEIGHT: usize = 144;
         let mut buffer = vec![0u32; WIDTH * HEIGHT];
@@ -69,137 +73,54 @@ impl Gameboy {
         window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
         while window.is_open() && !window.is_key_down(Key::Escape) {
-            if passing_clk_ticks > 0 {
-                passing_clk_ticks -= 1;
-                if passing_clk_ticks == 0 {
-                    return TestStatus::Pass;
-                }
-            }
-
             let new_size = window.get_size();
 
             self.memory.timer_cycle();
             self.memory.dma_cycle();
-
             if self.memory.ppu.is_active() {
                 self.memory.gpu_cycle(&mut buffer, &mut buffer_index);
             }
 
             if buffer_index == buff_max {
-                //println!("buf max found");
                 buffer_index = 0;
-
-                window
-                .update_with_buffer(&buffer, new_size.0, new_size.1)
-                .unwrap();
+                window.update_with_buffer(&buffer, new_size.0, new_size.1).unwrap();
             }
 
             if !self.memory.interrupt_handler.handling_isr {
-                self.cpu.cycle(&mut self.memory, is_blargg_test);
-
-                if self.cpu.current_opcode == 0x40 && !is_blargg_test {
-                    if self.cpu.b == 66 && self.cpu.c == 66 && self.cpu.d == 66
-                        && self.cpu.e == 66 && self.cpu.h == 66 && self.cpu.l == 66 {
-
-                        return TestStatus::Failed;
-                    }
-
-                    if self.cpu.b == 3 && self.cpu.c == 5 && self.cpu.d == 8
-                        && self.cpu.e == 13 && self.cpu.h == 21 && self.cpu.l == 34 {
-
-                        return TestStatus::Pass;
-                    }
-                }
+                self.cpu.cycle(&mut self.memory);
             }
     
             //Only try to service an interrupt if you finished an instruction
             match self.cpu.cpu_state {
                 cpu_state::CpuState::Fetch => self.memory.interrupt_cycle(&mut self.cpu.pc, &mut self.cpu.sp),
                 _ => (),
-            }        
-    
-            if self.memory.read_byte(0xff02) == 0x81 && is_blargg_test {
+            }     
+
+            if self.memory.read_byte(0xff02) == 0x81 {
                 let byte = self.memory.read_byte(0xff01);
                 print!("{}", byte as char);
 
-                if (byte as char == 'P' || byte as char == 'F') && !start_caring {
-                    start_caring = true;
-                }
+                // if (byte as char == 'P' || byte as char == 'F') && !start_caring { 
+                //     start_caring = true; 
+                // }
 
-                if start_caring {
-                    blargg_buffer.push(byte as char);
-                }
+                // if start_caring {
+                //     blargg_buffer.push(byte as char);
+                // }
 
-                if blargg_buffer.len() == blargg_pass_value.len() {
-                    if blargg_buffer == blargg_pass_value {
-                        return TestStatus::Pass;
-                    } else if blargg_buffer == blargg_failed_value {
-                        return TestStatus::Failed;
-                    } else {
-                        panic!("ERROR: |{blargg_buffer}|");
-                    }
-                }
+                // if blargg_buffer.len() == blargg_pass_value.len() {
+                //     if blargg_buffer == blargg_pass_value {
+                        
+                //     } else if blargg_buffer == blargg_failed_value {
+                        
+                //     } else {
+                //         panic!("ERROR: |{blargg_buffer}|");
+                //     }
+                // }
 
                 self.memory.write_byte(0xff02, 0);
-            }
+            }   
         }
-
-        return TestStatus::Pass;
-
-
-        // loop {
-        //     self.memory.timer_cycle();
-        //     self.memory.dma_cycle();
-
-        //     self.memory.gpu_cycle();
-
-        //     if !self.memory.interrupt_handler.handling_isr {
-        //         self.cpu.cycle(&mut self.memory, is_blargg_test);
-
-        //         if self.cpu.current_opcode == 0x40 && !is_blargg_test {
-        //             if self.cpu.b == 66 && self.cpu.c == 66 && self.cpu.d == 66 
-        //                 && self.cpu.e == 66 && self.cpu.h == 66 && self.cpu.l == 66 {
-        //                 return TestStatus::Failed;
-        //             }
-
-        //             if self.cpu.b == 3 && self.cpu.c == 5 && self.cpu.d == 8 
-        //                 && self.cpu.e == 13 && self.cpu.h == 21 && self.cpu.l == 34 {
-        //                     return TestStatus::Pass;
-        //             }
-        //         }
-        //     }
-    
-        //     //Only try to service an interrupt if you finished an instruction
-        //     match self.cpu.cpu_state {
-        //         cpu_state::CpuState::Fetch => self.memory.interrupt_cycle(&mut self.cpu.pc, &mut self.cpu.sp),
-        //         _ => (),
-        //     }        
-    
-        //     if self.memory.read_byte(0xff02) == 0x81 && is_blargg_test{
-        //         let byte = self.memory.read_byte(0xff01);
-        //         //print!("{}", byte as char);
-
-        //         if (byte as char == 'P' || byte as char == 'F') && !start_caring { 
-        //             start_caring = true; 
-        //         }
-
-        //         if start_caring {
-        //             blargg_buffer.push(byte as char);
-        //         }
-
-        //         if blargg_buffer.len() == blargg_pass_value.len() {
-        //             if blargg_buffer == blargg_pass_value {
-        //                 return TestStatus::Pass;
-        //             } else if blargg_buffer == blargg_failed_value {
-        //                 return TestStatus::Failed;
-        //             } else {
-        //                 panic!("ERROR: |{blargg_buffer}|");
-        //             }
-        //         }
-
-        //         self.memory.write_byte(0xff02, 0);
-        //     }
-        // }
     }
 }
 

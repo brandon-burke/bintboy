@@ -252,8 +252,9 @@ impl Memory {
         }
     }
 
-    pub fn load_rom(&mut self, rom_0: [u8; 0x4000], rom_1: [u8; 0x4000]) {
-        self.rom_bank_0 = rom_0;
-        self.rom_bank_x = rom_1;
+
+    pub fn copy_game_data_to_rom(&mut self, bank_0: [u8; 0x4000], bank_1: [u8; 0x4000]) {
+        self.rom_bank_0 = bank_0;
+        self.rom_bank_x = bank_1;
     }
 }
