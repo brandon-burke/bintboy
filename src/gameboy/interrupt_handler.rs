@@ -75,6 +75,7 @@ impl InterruptHandler {
                             4 => Interrupt::Joypad,
                             _ => panic!("Invalid interrupt vector"),
                         };
+                        break;
                     }
                 }   
                 self.ime_flag = false;

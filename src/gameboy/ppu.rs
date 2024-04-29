@@ -253,6 +253,10 @@ impl Ppu {
         }
     }
 
+    pub fn activate_ppu(&mut self) {
+        self.ppu_registers.lcdc.lcd_ppu_enable = State::On;
+    }
+
     /**
      * Returns if we should raise an interrupt or not
      */

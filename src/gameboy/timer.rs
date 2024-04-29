@@ -41,7 +41,7 @@ impl Timer {
      */
     pub fn cycle(&mut self) {
         self.increment_div();
-        if ((self.falling_edge_detected() && self.timer_is_enabled()) || (self.get_current_div_bit_value() == 1 && self.tac_en_falling_edge)) && !self.tima_overflow {
+        if ((self.falling_edge_detected() && self.timer_is_enabled()) || (self.get_current_div_bit_value() == 1 && self.tac_en_falling_edge)) && !self.tima_overflow && self.timer_is_enabled() {
             self.increment_tima();
         }
 

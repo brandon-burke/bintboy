@@ -67,7 +67,14 @@ pub const MAX_LY_VALUE: u8 = 153;
 //Constants that are just zero
 pub const LOWEST_PRIORITY_BG_COLOR: u8 = 0;
 pub const TRANSPARENT: u8 = 0;
+
+//MBC Register locations
 pub const RAM_ENABLE_START: u16 = 0x0000;
 pub const RAM_ENABLE_END: u16 = 0x1FFF;
 pub const ROM_BANK_NUM_START: u16 = 0x2000;
 pub const ROM_BANK_NUM_END: u16 = 0x3FFF;
+pub const RAM_BANK_NUM_START: u16 = 0x4000;
+pub const RAM_BANK_NUM_END: u16 = 0x5FFF;
+pub const BANKING_MODE_SEL_START: u16 = 0x6000;
+pub const BANKING_MODE_SEL_END: u16 = 0x7FFF; 
+

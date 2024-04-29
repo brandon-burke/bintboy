@@ -19,6 +19,7 @@ struct Cli {
  * -Not using the WX reg for pixel fetching, so window drawing can be wrong because of this
  * -When constructing the pixels and xpos is flipped I'm pushing to the head to yeah memory shifting
  * -Remember to remove all the unused linting (#![allow(dead_code)])
+ * -NOT IMPLEMENTING THE MBC ENTIRELY
  */
 
 /**
@@ -36,81 +37,95 @@ fn start_emulator(rom_file_path: &str) {
     gameboy.run();
 }
 
+/* This is the entry point for the Game Boy emulator */
+fn test_start_emulator(rom_file_path: &str) -> TestStatus {
+    let mut gameboy = Gameboy::new();
+    gameboy.load_rom(rom_file_path);
+    gameboy.test_run()
+}
+
+enum TestStatus {
+    Failed,
+    Pass
+}
 
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use crate::start_emulator;
+    use crate::{test_start_emulator, TestStatus};
 
     /*
         This will run all the blargg test ROMs individually, which are each 32KB in size. This test
         is helpful when your Game Boy emulator can only support ROMs up to 32KB.
     */
-    #[test]
-    fn run_individual_blargg_roms() {
-        let path = "test_roms/individual/";
-        let paths = fs::read_dir(path).unwrap();
-        //let mut tests = vec![];
-        for path in paths {
-            let path = path.unwrap().path();
-            if path.is_file() && path.extension().unwrap() == "gb" {
-                println!("Reading {}", &path.display().to_string());
-                start_emulator(&path.display().to_string());
-                //tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
-            }
-        }
+    // #[test]
+    // fn run_individual_blargg_roms() {
+    //     let path = "test_roms/individual/";
+    //     let paths = fs::read_dir(path).unwrap();
+    //     //let mut tests = vec![];
+    //     for path in paths {
+    //         let path = path.unwrap().path();
+    //         if path.is_file() && path.extension().unwrap() == "gb" {
+    //             println!("Reading {}", &path.display().to_string());
+    //             start_emulator(&path.display().to_string());
+    //             //tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
+    //         }
+    //     }
     
-        // let mut num_of_failures = 0;
-        // for (test, status) in tests {
-        //     if status == "Failed" {
-        //         num_of_failures += 1;
-        //     }
-        //     println!("{}: {}", test, status);
-        // }
+    //     // let mut num_of_failures = 0;
+    //     // for (test, status) in tests {
+    //     //     if status == "Failed" {
+    //     //         num_of_failures += 1;
+    //     //     }
+    //     //     println!("{}: {}", test, status);
+    //     // }
     
-        // if num_of_failures == 0 {
-        //     println!("\n*** ALL TESTS PASSED ***")
-        // } else {
-        //     if num_of_failures == 1 {
-        //         println!("\n*** {num_of_failures} TEST FAILURE ***");
-        //     } else {
-        //         println!("\n*** {num_of_failures} TESTS FAILURES ***");
-        //     }
-        // }
+    //     // if num_of_failures == 0 {
+    //     //     println!("\n*** ALL TESTS PASSED ***")
+    //     // } else {
+    //     //     if num_of_failures == 1 {
+    //     //         println!("\n*** {num_of_failures} TEST FAILURE ***");
+    //     //     } else {
+    //     //         println!("\n*** {num_of_failures} TESTS FAILURES ***");
+    //     //     }
+    //     // }
         
-    }
+    // }
 
     #[test]
     fn run_individual_mooneye_roms() {
-        let path = "test_roms/acceptance/bits";
+        let path = "test_roms/emulator-only/mbc1";
         let paths = fs::read_dir(path).unwrap();
-        //let mut tests = vec![];
+        let mut tests = vec![];
         for path in paths {
             let path = path.unwrap().path();
             if path.is_file() && path.extension().unwrap() == "gb" {
                 println!("Reading {}", &path.display().to_string());
-                start_emulator(&path.display().to_string());
-                //tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
+                let result = match test_start_emulator(&path.display().to_string()) {
+                    TestStatus::Failed => "Failed",
+                    TestStatus::Pass => "Pass",
+                };
+                tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
             }
         }
     
-        // let mut num_of_failures = 0;
-        // for (test, status) in tests {
-        //     if status == "Failed" {
-        //         num_of_failures += 1;
-        //     }
-        //     println!("{}: {}", test, status);
-        // }
+        let mut num_of_failures = 0;
+        for (test, status) in tests {
+            if status == "Failed" {
+                num_of_failures += 1;
+            }
+            println!("{}: {}", test, status);
+        }
     
-        // if num_of_failures == 0 {
-        //     println!("\n*** ALL TESTS PASSED ***")
-        // } else {
-        //     if num_of_failures == 1 {
-        //         println!("\n*** {num_of_failures} TEST FAILURE ***");
-        //     } else {
-        //         println!("\n*** {num_of_failures} TESTS FAILURES ***");
-        //     }
-        // }
+        if num_of_failures == 0 {
+            println!("\n*** ALL TESTS PASSED ***")
+        } else {
+            if num_of_failures == 1 {
+                println!("\n*** {num_of_failures} TEST FAILURE ***");
+            } else {
+                println!("\n*** {num_of_failures} TESTS FAILURES ***");
+            }
+        }
         
     }
 }

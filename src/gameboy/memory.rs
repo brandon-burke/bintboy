@@ -5,27 +5,26 @@ use crate::gameboy::dma::Dma;
 use crate::gameboy::ppu::{ Ppu, enums::PpuMode };
 use crate::gameboy::interrupt_handler::InterruptHandler;
 use crate::gameboy::constants::*;
+use crate::rom::{MBC, RAMSize, GameCartridge};
 
 pub struct Memory {
-    rom_bank_0: [u8; 0x4000],   //16KB -> 0000h – 3FFFh (Non-switchable ROM bank)
-    rom_bank_x: [u8; 0x4000],   //16KB -> 4000h – 7FFFh (Switchable ROM bank)
-    sram: [u8; 0x2000],         //8KB  -> A000h – BFFFh (External RAM in cartridge)
-    wram_0: [u8; 0x1000],       //1KB  -> C000h – CFFFh (Work RAM)
-    wram_x: [u8; 0x1000],       //1KB  -> D000h – DFFFh (Work RAM)
-    _echo: [u8; 0x1E00],         //     -> E000h – FDFFh (ECHO RAM) Mirror of C000h-DDFFh
-    unused: [u8; 0x60],         //     -> FEA0h – FEFFh (Unused)
-    joypad: Joypad,             //     -> FF00h         (Joypad)
-    serial: SerialTransfer,     //     -> FF01h - FF02h (Serial Transfer)
-    timer: Timer,               //     -> FF04h - FF07h
-    pub ppu: Ppu,                   //Pixel Processing Unit. Houses most of the graphics related memory
-    dma: Dma,                   //     -> FF46h OAM DMA source address register
-    io: [u8; 0x80],             //     -> FF00h – FF7Fh (I/O ports)
-    pub interrupt_handler: InterruptHandler, //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
-    hram: [u8; 0x7F],           //     -> FF80h – FFFEh (HRAM)
-    ram_enable_reg: bool,
-    ram_bank_num_reg: u8,
-    rom_bank_num_reg: u8,
-    banking_mode_sel_reg: u8,
+    rom_bank_0: [u8; 0x4000],                   //16KB -> 0000h – 3FFFh (Non-switchable ROM bank)
+    rom_bank_x: [u8; 0x4000],                   //16KB -> 4000h – 7FFFh (Switchable ROM bank)
+    sram: [u8; 0x2000],                         //8KB  -> A000h – BFFFh (External RAM in cartridge)
+    wram_0: [u8; 0x1000],                       //1KB  -> C000h – CFFFh (Work RAM)
+    wram_x: [u8; 0x1000],                       //1KB  -> D000h – DFFFh (Work RAM)
+    _echo: [u8; 0x1E00],                        //     -> E000h – FDFFh (ECHO RAM) Mirror of C000h-DDFFh
+    unused: [u8; 0x60],                         //     -> FEA0h – FEFFh (Unused)
+    joypad: Joypad,                             //     -> FF00h         (Joypad)
+    serial: SerialTransfer,                     //     -> FF01h - FF02h (Serial Transfer)
+    timer: Timer,                               //     -> FF04h - FF07h
+    pub ppu: Ppu,                                   //Pixel Processing Unit. Houses most of the graphics related memory
+    dma: Dma,                                   //     -> FF46h OAM DMA source address register
+    io: [u8; 0x80],                             //     -> FF00h – FF7Fh (I/O ports)
+    pub interrupt_handler: InterruptHandler,    //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
+    hram: [u8; 0x7F],                           //     -> FF80h – FFFEh (HRAM)
+    pub game_data: GameCartridge,
+    pub mbc_reg: MBCReg,                        //Holds all the registers that are important for bank switching
 }
 
 impl Memory {
@@ -46,10 +45,8 @@ impl Memory {
             interrupt_handler: InterruptHandler::new(),
             dma: Dma::new(),
             hram: [0; 0x7F],
-            ram_enable_reg: false,
-            ram_bank_num_reg: 0,
-            rom_bank_num_reg: 0,
-            banking_mode_sel_reg: 0,
+            game_data: GameCartridge::new(),
+            mbc_reg: MBCReg::new(),
         }
     }
 
@@ -76,7 +73,13 @@ impl Memory {
                     return 0xFF;
                 }
             },
-            SRAM_START ..= SRAM_END => self.sram[(address - SRAM_START) as usize],
+            SRAM_START ..= SRAM_END => {
+                if self.mbc_reg.ram_enable_reg {
+                    self.sram[(address - SRAM_START) as usize]
+                } else {
+                    0xFF
+                }
+            },
             WRAM_0_START ..= WRAM_0_END => self.wram_0[(address - WRAM_0_START) as usize],
             WRAM_X_START ..= WRAM_X_END => self.wram_x[(address - WRAM_X_START) as usize],
             ECHO_START ..= ECHO_END => {
@@ -134,11 +137,27 @@ impl Memory {
         }
 
         match address {
-            RAM_ENABLE_START ..= RAM_ENABLE_END => self.ram_enable_reg = (data_to_write & 0xF) == 0xA,
+            RAM_ENABLE_START ..= RAM_ENABLE_END => self.mbc_reg.ram_enable_reg = (data_to_write & 0xF) == 0xA,
             ROM_BANK_NUM_START ..= ROM_BANK_NUM_END => {
-                let bank_size = 
-                self.rom_bank_num_reg = (data_to_write & 0x1F) | 0x1
-                
+                let mut rom_bank_num = data_to_write & self.mbc_reg.bank_bit_mask as u8;
+                if (data_to_write & 0x1F) == 0 {
+                    rom_bank_num = 1;
+                }
+
+                self.rom_bank_x = self.game_data.rom_banks[rom_bank_num as usize];
+            },
+            RAM_BANK_NUM_START ..= RAM_BANK_NUM_END => {
+                match (&self.mbc_reg.mbc_type, &self.mbc_reg.ram_size) {
+                    (MBC::RomOnly, _) => {}
+                    (MBC::MBC1, RAMSize::_32KiB) => {
+                        let ram_bank_num = data_to_write & 0x3;
+                        self.sram = self.game_data.ram_banks[ram_bank_num as usize];
+                    }
+                    _ => {}
+                }
+            },
+            BANKING_MODE_SEL_START ..= BANKING_MODE_SEL_END => {
+                self.mbc_reg.banking_mode_sel_reg = data_to_write & 0x1;
             },
             VRAM_START ..= VRAM_END => {
                 if self.ppu.current_mode() != PpuMode::DrawingPixels || !self.ppu.is_active() {
@@ -152,7 +171,11 @@ impl Memory {
                     }
                 }
             },
-            SRAM_START ..= SRAM_END => self.sram[(address - SRAM_START) as usize] = data_to_write,
+            SRAM_START ..= SRAM_END => {
+                if self.mbc_reg.ram_enable_reg {
+                    self.sram[(address - SRAM_START) as usize] = data_to_write
+                }
+            }
             WRAM_0_START ..= WRAM_0_END => self.wram_0[(address - WRAM_0_START) as usize] = data_to_write,
             WRAM_X_START ..= WRAM_X_END => self.wram_x[(address - WRAM_X_START) as usize] = data_to_write,
             ECHO_START ..= ECHO_END => {
@@ -198,6 +221,7 @@ impl Memory {
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize] = data_to_write,
             INTERRUPT_ENABLE_START => self.interrupt_handler.write_ie_reg(data_to_write),
+            _ => panic!("The address of {address} is not valid"),
         }
     }
 
@@ -268,5 +292,29 @@ impl Memory {
     pub fn copy_game_data_to_rom(&mut self, bank_0: [u8; 0x4000], bank_1: [u8; 0x4000]) {
         self.rom_bank_0 = bank_0;
         self.rom_bank_x = bank_1;
+    }
+}
+
+pub struct MBCReg {
+    pub mbc_type: MBC,
+    pub ram_enable_reg: bool,
+    pub ram_bank_num_reg: u8,
+    pub rom_bank_num_reg: u8,
+    pub banking_mode_sel_reg: u8,
+    pub bank_bit_mask: u16,
+    pub ram_size: RAMSize,
+}
+
+impl MBCReg {
+    pub fn new() -> Self {
+        Self {
+            mbc_type: MBC::RomOnly,
+            ram_enable_reg: false,
+            ram_bank_num_reg: 0,
+            rom_bank_num_reg: 0,
+            banking_mode_sel_reg: 0,
+            bank_bit_mask: 0,
+            ram_size: RAMSize::_0KiB,
+        }
     }
 }
