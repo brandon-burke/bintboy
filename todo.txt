@@ -3,3 +3,72 @@
 -FF51 - FF55 is VRAM DMA on CGB
 -FF69 - FF6B is BG/OBJ Palettes
 -FF70 WRAM bank selection on CGB
+
+
+
+
+Features to add to ppu:
+-Disabling the bg/win w/ lcdc bit 0
+    -Both bg and win are white and lcdc bit 5 is ignored
+    -Only objects are displayed
+-Disabling the win w/ lcdc bit 5
+	-This in DMG mode is not functional if lcdc bit 0 is set (basically ignored)
+	-If the window is enabled, Mode 3 is longer on scalines where its visible
+-Implement x and y sprite flipping attribute
+-Rendering the different palettes at the end
+-Implement blocking CPU from using other memory addresses during OAM DMA
+    -Only HRAM can be accessed
+    -PPU can't read OAM either
+    -If OAM DMA is active during OAM scan, then ignore all objects (check)
+-Implement LCDC bit 7 (LCD Enable)
+    -PPU its just suspended
+    -Grant full access to VRAM, OAM, etc.
+    -Make screen go blank (all white)
+    -PPU will immediately start drawing again when turned back on
+        -Screen will be blank for first frame though
+-Implement Stat reg LY==LYC
+    -Anywhere we change the ly value we should do a comparision and update the reg
+    -Fire interrupt if enabled
+-Implement SCX reg only being fully read at the beginning of the scanline
+    -Don't read the bottom 3 bits after that for subsequent tile fetches
+-Implement window glitch?
+-Make sure that for sprites, whenever the ID 0 is used to just default to tranparent
+
+-Implement cpu memory access of VRAM, OAM, and CGB palettes depending on the current mode
+    -Write are ignored if cpu can't access certain memory location
+    -Reads just return 0xFF
+    -During Mode 2
+        -Can access VRAM and CGB color palettes
+    -During Mode 3
+        -Nothing is accessible
+        -OAM only by DMA
+    During Mode 1
+        -OAM, VRAM, and CGB palettes accessible
+    During Mode 0
+        -OAM, VRAM, and CGB palettes accessible
+
+-Implement Mode 3 penalties
+    -Background scrolling
+        -Pause rendering for SCX & 8 clk ticks
+        -Same number of pixels are discarded from the left most tile
+    -window
+        -6 dot penalty after last non window pixel is pushed
+        -Its because were setting up the bg fetcher for the window
+    -objects 
+        -each object drawn can incur a 6-11 dot penalty (even for partial sprites)
+
+-CONDITIONS ONLY CHECKED ENTERING STOP Mode 
+    -Leaving STOP mode ppu access to vram is restored
+    -Implement weird times during ppu operation where read access is blocked
+        -If it is blocked it sends back 0xFF
+        -LCD Turning off (is this a lcdc bit 7?)
+        -Switch from mode 3 to 0
+    -Implement weird times during ppu operation where read access is blocked restored
+        -At scanline 0
+        -When searching OAM and index 37 is reached
+        -After switching from mode 2 to mode 3
+
+-Implement when WX == 0 && SCX & 7 > 0
+    -Mode 3 is shortened by 1 dot
+
+-Maybe Implement Object canceling

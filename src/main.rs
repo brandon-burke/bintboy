@@ -1,70 +1,132 @@
-pub mod cpu;
-pub mod cpu_state;
-pub mod memory;
-pub mod timer;
-pub mod opcodes;
-pub mod binary_utils;
-pub mod interrupt_handler;
-pub mod ppu;
-pub mod constants;
-pub mod dma;
+mod gameboy;
+mod rom;
 
-use std::env;
-use std::fs::File;
-use std::io::Read;
-fn main() {
-    let args = env::args().collect::<Vec<String>>();
-    let (rom_file_0, rom_file_1) = create_rom_file(&args[1]);
-    // let args = "test_roms/individual/02-interrupts.gb";
-    // let (rom_file_0, rom_file_1) = create_rom_file(args);
-    let mut cpu = cpu::Cpu::new();
-    let mut memory = memory::Memory::new();
+use crate::gameboy::Gameboy;
+use clap::Parser;
 
-
-    println!("Loading rom...");
-    memory.load_rom(rom_file_0, rom_file_1);
-
-    loop {
-        memory.timer_cycle();
-        if !memory.interrupt_handler.handling_isr {
-            cpu.cycle(&mut memory);
-        }
-
-        //Only try to service an interrupt if you finished an instruction
-        match cpu.cpu_state {
-            cpu_state::CpuState::Fetch => memory.interrupt_cycle(&mut cpu.pc, &mut cpu.sp),
-            _ => (),
-        }        
-
-        if memory.read_byte(0xff02) == 0x81 {
-            let byte = memory.read_byte(0xff01);
-            print!("{}", byte as char);
-            memory.write_byte(0xff02, 0);
-        }
-    }
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    path: String,
 }
 
 /**
- * Create a byte array from the ROM file
+ * THINGS I TOLD MYSELF WOULD BE A PROBLEM LATER BUT DIDNT LISTEN
+ * 
+ * -If the game isn't running well. Could be due to a bunch of memory copying from popping the head of Vector types
+ *      might be better to use something that doesn't have allocation penalties from popping from the head.
+ * -Not letting sprites physically draw over the window because of how I mix pixels
+ * -Not using the WX reg for pixel fetching, so window drawing can be wrong because of this
+ * -When constructing the pixels and xpos is flipped I'm pushing to the head to yeah memory shifting
+ * -Remember to remove all the unused linting (#![allow(dead_code)])
+ * -NOT IMPLEMENTING THE MBC ENTIRELY
  */
-fn create_rom_file(file_path: &str) -> ([u8; 0x4000], [u8; 0x4000]) {
-    let file = File::open(file_path).expect("File not found");
-    let mut rom_file_0 = [0; 0x4000];
-    let mut rom_file_1 = [0; 0x4000];
 
-    for (i, byte) in file.bytes().enumerate() {
-        if i < 0x4000 {
-            rom_file_0[i] = match byte {
-                Ok(value) => value,
-                Err(e) => panic!("Error: {}", e),
-            };
-        } else {
-            rom_file_1[i - 0x4000] = match byte {
-                Ok(value) => value,
-                Err(e) => panic!("Error: {}", e),
-            };
-        }
-    }
-
-    return (rom_file_0, rom_file_1);
+/**
+ * Main entry point which will take in a file path the user specifies
+ */
+fn main() {
+    let args = Cli::parse();
+    start_emulator(&args.path);
 }
+
+/* This is the entry point for the Game Boy emulator */
+fn start_emulator(rom_file_path: &str) {
+    let mut gameboy = Gameboy::new();
+    gameboy.load_rom(rom_file_path);
+    gameboy.run();
+}
+
+/* This is the entry point for the Game Boy emulator */
+fn test_start_emulator(rom_file_path: &str) -> TestStatus {
+    let mut gameboy = Gameboy::new();
+    gameboy.load_rom(rom_file_path);
+    gameboy.test_run()
+}
+
+enum TestStatus {
+    Failed,
+    Pass
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use crate::{test_start_emulator, TestStatus};
+
+    /*
+        This will run all the blargg test ROMs individually, which are each 32KB in size. This test
+        is helpful when your Game Boy emulator can only support ROMs up to 32KB.
+    */
+    // #[test]
+    // fn run_individual_blargg_roms() {
+    //     let path = "test_roms/individual/";
+    //     let paths = fs::read_dir(path).unwrap();
+    //     //let mut tests = vec![];
+    //     for path in paths {
+    //         let path = path.unwrap().path();
+    //         if path.is_file() && path.extension().unwrap() == "gb" {
+    //             println!("Reading {}", &path.display().to_string());
+    //             start_emulator(&path.display().to_string());
+    //             //tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
+    //         }
+    //     }
+    
+    //     // let mut num_of_failures = 0;
+    //     // for (test, status) in tests {
+    //     //     if status == "Failed" {
+    //     //         num_of_failures += 1;
+    //     //     }
+    //     //     println!("{}: {}", test, status);
+    //     // }
+    
+    //     // if num_of_failures == 0 {
+    //     //     println!("\n*** ALL TESTS PASSED ***")
+    //     // } else {
+    //     //     if num_of_failures == 1 {
+    //     //         println!("\n*** {num_of_failures} TEST FAILURE ***");
+    //     //     } else {
+    //     //         println!("\n*** {num_of_failures} TESTS FAILURES ***");
+    //     //     }
+    //     // }
+        
+    // }
+
+    #[test]
+    fn run_individual_mooneye_roms() {
+        let path = "test_roms/emulator-only/mbc1";
+        let paths = fs::read_dir(path).unwrap();
+        let mut tests = vec![];
+        for path in paths {
+            let path = path.unwrap().path();
+            if path.is_file() && path.extension().unwrap() == "gb" {
+                println!("Reading {}", &path.display().to_string());
+                let result = match test_start_emulator(&path.display().to_string()) {
+                    TestStatus::Failed => "Failed",
+                    TestStatus::Pass => "Pass",
+                };
+                tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
+            }
+        }
+    
+        let mut num_of_failures = 0;
+        for (test, status) in tests {
+            if status == "Failed" {
+                num_of_failures += 1;
+            }
+            println!("{}: {}", test, status);
+        }
+    
+        if num_of_failures == 0 {
+            println!("\n*** ALL TESTS PASSED ***")
+        } else {
+            if num_of_failures == 1 {
+                println!("\n*** {num_of_failures} TEST FAILURE ***");
+            } else {
+                println!("\n*** {num_of_failures} TESTS FAILURES ***");
+            }
+        }
+        
+    }
+}
+
