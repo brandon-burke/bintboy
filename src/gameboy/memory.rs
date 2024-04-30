@@ -221,7 +221,6 @@ impl Memory {
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize] = data_to_write,
             INTERRUPT_ENABLE_START => self.interrupt_handler.write_ie_reg(data_to_write),
-            _ => panic!("The address of {address} is not valid"),
         }
     }
 
@@ -234,7 +233,7 @@ impl Memory {
             None => (),
             Some((src_address, oam_offset)) => {
                 let oam_address = OAM_START + oam_offset as u16;
-                let src_address_data = self.read_byte(src_address);
+                let src_address_data = self.read_byte(src_address); //This will get affected by VRAM access blocking
                 self.write_byte(oam_address, src_address_data);
             },
         }

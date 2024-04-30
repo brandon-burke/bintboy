@@ -134,13 +134,13 @@ impl Gameboy {
             if self.cpu.current_opcode == 0x40 {
                 if self.cpu.b == 66 && self.cpu.c == 66 && self.cpu.d == 66 
                     && self.cpu.e == 66 && self.cpu.h == 66 && self.cpu.l == 66 {
-                        println!("Failed");
+                        //println!("Failed");
                     return TestStatus::Failed;
                 }
 
                 if self.cpu.b == 3 && self.cpu.c == 5 && self.cpu.d == 8 
                     && self.cpu.e == 13 && self.cpu.h == 21 && self.cpu.l == 34 {
-                        println!("Pass");
+                        //println!("Pass");
                         return TestStatus::Pass;
                 }
             }

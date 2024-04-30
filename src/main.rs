@@ -94,13 +94,13 @@ mod tests {
 
     #[test]
     fn run_individual_mooneye_roms() {
-        let path = "test_roms/emulator-only/mbc1";
+        let path = "test_roms/acceptance/timer";
         let paths = fs::read_dir(path).unwrap();
         let mut tests = vec![];
         for path in paths {
             let path = path.unwrap().path();
             if path.is_file() && path.extension().unwrap() == "gb" {
-                println!("Reading {}", &path.display().to_string());
+                //println!("Reading {}", &path.display().to_string());
                 let result = match test_start_emulator(&path.display().to_string()) {
                     TestStatus::Failed => "Failed",
                     TestStatus::Pass => "Pass",
@@ -118,7 +118,7 @@ mod tests {
         }
     
         if num_of_failures == 0 {
-            println!("\n*** ALL TESTS PASSED ***")
+            println!("\n*** ALL TESTS PASSED ***");
         } else {
             if num_of_failures == 1 {
                 println!("\n*** {num_of_failures} TEST FAILURE ***");
@@ -126,7 +126,6 @@ mod tests {
                 println!("\n*** {num_of_failures} TESTS FAILURES ***");
             }
         }
-        
     }
 }
 
