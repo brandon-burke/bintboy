@@ -1,3 +1,4 @@
+use minifb::Window;
 use crate::gameboy::timer::Timer;
 use crate::gameboy::joypad::Joypad;
 use crate::gameboy::serial_transfer::SerialTransfer;
@@ -24,7 +25,8 @@ pub struct Memory {
     pub interrupt_handler: InterruptHandler,    //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
     hram: [u8; 0x7F],                           //     -> FF80h – FFFEh (HRAM)
     pub game_data: GameCartridge,
-    pub mbc_reg: MBCReg,                        //Holds all the registers that are important for bank switching
+    pub mbc_reg: MBCReg,                        //Holds all the registers that are important for bank switching\
+    dma_read_or_write: bool,
 }
 
 impl Memory {
@@ -47,6 +49,7 @@ impl Memory {
             hram: [0; 0x7F],
             game_data: GameCartridge::new(),
             mbc_reg: MBCReg::new(),
+            dma_read_or_write: false,
         }
     }
 
@@ -60,7 +63,7 @@ impl Memory {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize],
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize],
             VRAM_START ..= VRAM_END => {
-                if self.ppu.current_mode() != PpuMode::DrawingPixels || !self.ppu.is_active() {
+                if self.ppu.current_mode() != PpuMode::DrawingPixels || !self.ppu.is_active() || self.dma_read_or_write {
                     match address {
                         TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.read_tile_data_0(address),
                         TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.read_tile_data_1(address),
@@ -91,7 +94,7 @@ impl Memory {
                 }
             }
             OAM_START ..= OAM_END => {
-                if (self.ppu.current_mode() != PpuMode::OamScan && self.ppu.current_mode() != PpuMode::DrawingPixels) || !self.ppu.is_active() {
+                if (self.ppu.current_mode() != PpuMode::OamScan && self.ppu.current_mode() != PpuMode::DrawingPixels) || !self.ppu.is_active() || self.dma_read_or_write {
                     self.ppu.read_oam(address)
                 } else {
                     return 0xFF;
@@ -221,7 +224,6 @@ impl Memory {
             }
             HRAM_START ..= HRAM_END => self.hram[(address - HRAM_START) as usize] = data_to_write,
             INTERRUPT_ENABLE_START => self.interrupt_handler.write_ie_reg(data_to_write),
-            _ => panic!("The address of {address} is not valid"),
         }
     }
 
@@ -233,9 +235,11 @@ impl Memory {
         match self.dma.cycle() {
             None => (),
             Some((src_address, oam_offset)) => {
+                self.dma_read_or_write = true;
                 let oam_address = OAM_START + oam_offset as u16;
-                let src_address_data = self.read_byte(src_address);
+                let src_address_data = self.read_byte(src_address); //This will get affected by VRAM access blocking
                 self.write_byte(oam_address, src_address_data);
+                self.dma_read_or_write = false;
             },
         }
     }
@@ -285,6 +289,12 @@ impl Memory {
                 self.write_byte(*sp, *pc as u8);
             },
             _ => (), 
+        }
+    }
+    
+    pub fn joypad_cycle(&mut self, window: &Window) {
+        if self.joypad.cycle(window) {
+            self.interrupt_handler.if_reg |= 0x10;
         }
     }
 

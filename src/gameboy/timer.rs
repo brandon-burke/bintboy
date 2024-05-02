@@ -6,13 +6,13 @@ pub struct Timer {
     tma_reg: u8,                // Timer Modulo
     tac_reg: u8,                // Timer Control
     prev_div_bit_value: u8,     // 
-    tima_overflow: bool,        // TIMA overflow      
-    div_write: bool,            //Lets us know if a write to the div register occurred
+    tima_overflow: bool,        // TIMA overflow
     tac_en_falling_edge: bool,  //Lets us know if the timer went from being enabled to disabled
     ticks_since_overflow: u8,   //
     pub interrupted_requested: bool,
     tima_a_cycle_write_occurred: bool,
     tima_write_value: u8,
+    cycle: u8,
 }
 
 impl Timer {
@@ -27,12 +27,12 @@ impl Timer {
             tac_reg: 0xF8,
             prev_div_bit_value: 0,
             tima_overflow: false,
-            div_write: false,
             tac_en_falling_edge: false,
             ticks_since_overflow: 0,
             interrupted_requested: false,
             tima_a_cycle_write_occurred: false,
             tima_write_value: 0,
+            cycle: 0,
         }
     }
 
@@ -41,27 +41,33 @@ impl Timer {
      */
     pub fn cycle(&mut self) {
         self.increment_div();
-        if ((self.falling_edge_detected() && self.timer_is_enabled()) || (self.get_current_div_bit_value() == 1 && self.tac_en_falling_edge)) && !self.tima_overflow && self.timer_is_enabled() {
+        if ((self.falling_edge_detected() && self.timer_is_enabled()) || (self.get_current_div_bit_value() == 1 && self.tac_en_falling_edge)) && !self.tima_overflow {
             self.increment_tima();
         }
-
+        
         if self.tima_overflow == true {
             self.ticks_since_overflow += 1; 
             
-            if self.ticks_since_overflow == MACHINE_CYCLE && self.tima_a_cycle_write_occurred { //The A cycle
-                self.tima_reg = self.tima_write_value;
-                self.tima_overflow = false;
-                self.ticks_since_overflow = 0;
-                self.tima_a_cycle_write_occurred = false;
-            } else if self.ticks_since_overflow == 8 {   //B cycle
-                self.tima_reg = self.tma_reg; 
-                self.interrupted_requested = true;
-                self.ticks_since_overflow = 0;
-                self.tima_overflow = false;
+            if self.ticks_since_overflow == MACHINE_CYCLE { //The A cycle
+                if self.tima_a_cycle_write_occurred {
+                    self.tima_reg = self.tima_write_value;
+                    self.tima_overflow = false;
+                    self.ticks_since_overflow = 0;
+                    self.tima_a_cycle_write_occurred = false;
+                } else {
+                    self.interrupted_requested = true;
+                }
+            } else if self.ticks_since_overflow > 4 {   //B cycle
+                self.tima_reg = self.tma_reg;
+                if self.ticks_since_overflow == 8 {
+                    self.ticks_since_overflow = 0;
+                    self.tima_overflow = false;
+                }
             }
         }       
         
         self.prev_div_bit_value = self.get_current_div_bit_value(); //At the end of the cycle we'll update what the previous bit value was
+        self.tac_en_falling_edge = false;
     }
 
     /**
@@ -74,12 +80,7 @@ impl Timer {
     }
 
     fn increment_div(&mut self) {
-        if self.div_write {
-            self.div_reg = 0;
-            self.div_write = false;
-        } else {
-            self.div_reg = self.div_reg.wrapping_add(1);
-        }
+        self.div_reg = self.div_reg.wrapping_add(1);
     }
 
     /**
@@ -98,8 +99,8 @@ impl Timer {
      * Return the value of whatever bit we were looking at in the DIV register
      */
     fn get_current_div_bit_value(&self) -> u8 {
-        let current_clk_selction = self.tac_reg & 0x3;
-        match current_clk_selction {
+        let current_clk_selection = self.tac_reg & 0x3;
+        match current_clk_selection {
             0x00 => ((self.div_reg >> 9) & 0x1) as u8,
             0x01 => ((self.div_reg >> 3) & 0x1) as u8,
             0x02 => ((self.div_reg >> 5) & 0x1) as u8,
@@ -117,7 +118,7 @@ impl Timer {
     }
 
     pub fn write_2_div(&mut self) {
-        self.div_write = true;
+        self.div_reg = 0;
     }
     
     pub fn write_2_tima(&mut self, value: u8) {
