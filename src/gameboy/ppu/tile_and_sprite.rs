@@ -76,7 +76,7 @@ impl Sprite {
 
         //You can use match statments here buddy
 
-        if self.priority ==  SpritePriority::UnderBg {
+        if self.priority == SpritePriority::UnderBg {
             value |= 0x1 << 7;
         }
 

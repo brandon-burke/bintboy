@@ -6,8 +6,7 @@ pub struct Timer {
     tma_reg: u8,                // Timer Modulo
     tac_reg: u8,                // Timer Control
     prev_div_bit_value: u8,     // 
-    tima_overflow: bool,        // TIMA overflow      
-    div_write: bool,            //Lets us know if a write to the div register occurred
+    tima_overflow: bool,        // TIMA overflow
     tac_en_falling_edge: bool,  //Lets us know if the timer went from being enabled to disabled
     ticks_since_overflow: u8,   //
     pub interrupted_requested: bool,
@@ -28,7 +27,6 @@ impl Timer {
             tac_reg: 0xF8,
             prev_div_bit_value: 0,
             tima_overflow: false,
-            div_write: false,
             tac_en_falling_edge: false,
             ticks_since_overflow: 0,
             interrupted_requested: false,
@@ -57,7 +55,6 @@ impl Timer {
                     self.ticks_since_overflow = 0;
                     self.tima_a_cycle_write_occurred = false;
                 } else {
-                    self.tima_reg = self.tma_reg;
                     self.interrupted_requested = true;
                 }
             } else if self.ticks_since_overflow > 4 {   //B cycle

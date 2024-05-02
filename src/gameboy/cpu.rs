@@ -49,7 +49,7 @@ impl Cpu {
     pub fn cycle(&mut self, memory: &mut Memory) {
         /* Have to wait 1 machine cycle before we do anywork */
         self.cpu_clk_cycles += 1;
-        if self.cpu_clk_cycles >= MACHINE_CYCLE {
+        if self.cpu_clk_cycles == MACHINE_CYCLE {
             self.cpu_clk_cycles = 0;
         } else {
             return;

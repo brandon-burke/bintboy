@@ -2,7 +2,7 @@ pub struct Dma {
     src_address_reg: u8,            //$FF46 in memory
     current_address_offset: u8,     //Will help keep track of what address we are currently reading from and to
     cycles_since_start: u8,         //Tells us how many cycles have passed since the start of the DMA transfer
-    cycles_before_write: u8,        //Will help us write every 4 cpu clks
+    clk_ticks_before_write: u8,        //Will help us write every 4 cpu clks
     pub currently_transferring: bool    //Tells us if we are currently transferring a some data
 }
 
@@ -12,7 +12,7 @@ impl Dma {
             src_address_reg: 0,
             current_address_offset: 0,
             cycles_since_start: 0,
-            cycles_before_write: 0,
+            clk_ticks_before_write: 0,
             currently_transferring: false,
         }
     }
@@ -26,10 +26,10 @@ impl Dma {
      */
     pub fn cycle(&mut self) -> Option<(u16, u8)> {
         if self.currently_transferring {
-            self.cycles_before_write += 1;
+            self.clk_ticks_before_write += 1;
             
-            if self.cycles_before_write == 4 {
-                self.cycles_before_write = 0;
+            if self.clk_ticks_before_write == 4 {
+                self.clk_ticks_before_write = 0;
 
                 //Checking if were finished transferring
                 self.cycles_since_start += 1;
@@ -56,8 +56,10 @@ impl Dma {
     pub fn write_source_address(&mut self, value: u8) {
         self.src_address_reg = value;
         self.current_address_offset = 0;
-        self.cycles_before_write = 0;
+        self.clk_ticks_before_write = 0;
         self.cycles_since_start = 0;
         self.currently_transferring = true;
     }
 }
+
+//FFB6

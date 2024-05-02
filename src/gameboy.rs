@@ -60,6 +60,7 @@ impl Gameboy {
 
             self.memory.timer_cycle();
             self.memory.dma_cycle();
+            self.memory.joypad_cycle(&window);
             if self.memory.ppu.is_active() {
                 self.memory.gpu_cycle(&mut buffer, &mut buffer_index);
             }
@@ -69,15 +70,15 @@ impl Gameboy {
                 window.update_with_buffer(&buffer, new_size.0, new_size.1).unwrap();
             }
 
-            if !self.memory.interrupt_handler.handling_isr {
-                self.cpu.cycle(&mut self.memory);
-            }
-    
             //Only try to service an interrupt if you finished an instruction
             match self.cpu.cpu_state {
                 cpu_state::CpuState::Fetch => self.memory.interrupt_cycle(&mut self.cpu.pc, &mut self.cpu.sp),
                 _ => (),
-            }     
+            }
+
+            if !self.memory.interrupt_handler.handling_isr {
+                self.cpu.cycle(&mut self.memory);
+            }
         }
     }
 
@@ -111,13 +112,13 @@ impl Gameboy {
         let mut buffer_index: usize = 0;
         let buff_max = WIDTH * HEIGHT;
         let mut window = Self::initialize_window();
-        self.memory.ppu.activate_ppu();
         
         while window.is_open() && !window.is_key_down(Key::Escape) {
             let new_size = window.get_size();
 
             self.memory.timer_cycle();
             self.memory.dma_cycle();
+            self.memory.joypad_cycle(&window);
             if self.memory.ppu.is_active() {
                 self.memory.gpu_cycle(&mut buffer, &mut buffer_index);
             }
@@ -126,7 +127,11 @@ impl Gameboy {
                 buffer_index = 0;
                 window.update_with_buffer(&buffer, new_size.0, new_size.1).unwrap();
             }
-
+            //Only try to service an interrupt if you finished an instruction
+            match self.cpu.cpu_state {
+                cpu_state::CpuState::Fetch => self.memory.interrupt_cycle(&mut self.cpu.pc, &mut self.cpu.sp),
+                _ => (),
+            }
             if !self.memory.interrupt_handler.handling_isr {
                 self.cpu.cycle(&mut self.memory);
             }
@@ -144,12 +149,6 @@ impl Gameboy {
                         return TestStatus::Pass;
                 }
             }
-    
-            //Only try to service an interrupt if you finished an instruction
-            match self.cpu.cpu_state {
-                cpu_state::CpuState::Fetch => self.memory.interrupt_cycle(&mut self.cpu.pc, &mut self.cpu.sp),
-                _ => (),
-            }     
         }
 
         return TestStatus::Pass;
