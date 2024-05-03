@@ -72,10 +72,10 @@ impl Joypad {
     pub fn cycle(&mut self, window: &Window) -> bool {
         let mut request_interrupt = false;
         let mut prev_button_state;
-    
+
         //Capturing the old state and updating to new state
         prev_button_state = self.a_and_right;
-        self.a_and_right = match window.is_key_down(Key::J) | window.is_key_down(Key::D) {
+        self.a_and_right = match (window.is_key_down(Key::J) && self.select_buttons.is_on()) | (window.is_key_down(Key::D) && self.select_dpad.is_on()) {
             true => ButtonState::On,
             false => ButtonState::Off,
         };
@@ -83,7 +83,6 @@ impl Joypad {
         if self.select_dpad.is_on() || self.select_buttons.is_on() {
             request_interrupt = match (prev_button_state, self.a_and_right) {
                 (ButtonState::Off, ButtonState::On) => {
-                    println!("A or Right was pressed");
                     true
                 }
                 _ => request_interrupt,
@@ -91,7 +90,7 @@ impl Joypad {
         }
 
         prev_button_state = self.b_and_left;
-        self.b_and_left = match window.is_key_down(Key::K) | window.is_key_down(Key::A) {
+        self.b_and_left = match (window.is_key_down(Key::K) && self.select_buttons.is_on()) | (window.is_key_down(Key::A) && self.select_dpad.is_on()) {
             true => ButtonState::On,
             false => ButtonState::Off,
         };
@@ -99,15 +98,14 @@ impl Joypad {
         if self.select_dpad.is_on() || self.select_buttons.is_on() {
             request_interrupt = match (prev_button_state, self.b_and_left) {
                 (ButtonState::Off, ButtonState::On) => {
-                    println!("B or Left was pressed");
                     true
                 }
                 _ => request_interrupt,
             };
         }
-        
+
         prev_button_state = self.select_and_up;
-        self.select_and_up = match window.is_key_down(Key::W) | window.is_key_down(Key::Backspace) {
+        self.select_and_up = match (window.is_key_down(Key::W) && self.select_buttons.is_on()) | (window.is_key_down(Key::Backspace) && self.select_dpad.is_on()) {
             true => ButtonState::On,
             false => ButtonState::Off
         };
@@ -115,15 +113,14 @@ impl Joypad {
         if self.select_dpad.is_on() || self.select_buttons.is_on() {
             request_interrupt = match (prev_button_state, self.select_and_up) {
                 (ButtonState::Off, ButtonState::On) => {
-                    println!("Select or Up was pressed");
                     true
                 }
                 _ => request_interrupt,
             };
         }
-    
+        
         prev_button_state = self.start_and_down;
-        self.start_and_down = match window.is_key_down(Key::Space) | window.is_key_down(Key::S) {
+        self.start_and_down = match (window.is_key_down(Key::Space) && self.select_buttons.is_on()) | (window.is_key_down(Key::S) && self.select_dpad.is_on()) {
             true => ButtonState::On,
             false => ButtonState::Off,
         };
@@ -131,12 +128,12 @@ impl Joypad {
         if self.select_dpad.is_on() || self.select_buttons.is_on() {
             request_interrupt = match (prev_button_state, self.start_and_down) {
                 (ButtonState::Off, ButtonState::On) => {
-                    println!("Start or Down was pressed");
                     true
                 }
                 _ => request_interrupt,
             };
         }
+
         
         return request_interrupt;
     }
@@ -156,7 +153,7 @@ impl Joypad {
             return upper_nibble | 0xF;
         }
 
-        return  upper_nibble | 
+        return  upper_nibble |
                 (self.start_and_down.value() << 3) | 
                 (self.select_and_up.value() << 2) |
                 (self.b_and_left.value() << 1) |

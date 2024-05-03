@@ -51,7 +51,6 @@ impl Ppu {
 
     pub fn cycle(&mut self) -> Option<PaletteColors> {
         self.clk_ticks += 1;    //Keeps track of how many ticks during a mode
-
         match self.current_mode() {
             PpuMode::OamScan => {   //Mode 2
                 
