@@ -88,7 +88,7 @@ impl Gameboy {
             WindowOptions {
                 resize: false,
                 title: true,
-                scale: Scale::X1,
+                scale: Scale::X4,
                 scale_mode: ScaleMode::Stretch,
                 ..WindowOptions::default()
             },

@@ -107,6 +107,7 @@ impl GameCartridge {
     }
 }
 
+#[derive(Debug)]
 pub enum MBC {
     RomOnly,
     MBC1,

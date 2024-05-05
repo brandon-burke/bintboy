@@ -105,7 +105,7 @@ impl Joypad {
         }
 
         prev_button_state = self.select_and_up;
-        self.select_and_up = match (window.is_key_down(Key::W) && self.select_buttons.is_on()) | (window.is_key_down(Key::Backspace) && self.select_dpad.is_on()) {
+        self.select_and_up = match (window.is_key_down(Key::W) && self.select_dpad.is_on()) | (window.is_key_down(Key::Backspace) && self.select_buttons.is_on()) {
             true => ButtonState::On,
             false => ButtonState::Off
         };

@@ -55,9 +55,9 @@ impl Memory {
 
     pub fn read_byte(&self, address: u16) -> u8 {
         //Can't read anything below OAM while DMA is going
-        // if self.dma.currently_transferring && address < OAM_START && !self.dma_read_or_write {
-        //     return 0xFF;
-        // }
+        if (self.dma.currently_transferring && (address < HRAM_START || address > HRAM_END)) && !self.dma_read_or_write {
+            return 0xFF;
+        }
 
         match address {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize],
@@ -135,9 +135,9 @@ impl Memory {
 
     pub fn write_byte(&mut self, address: u16, data_to_write: u8) {
         //Can't write anything below OAM while DMA is going
-        // if self.dma.currently_transferring && address < OAM_START && !self.dma_read_or_write {
-        //     return;
-        // }
+        if (self.dma.currently_transferring && (address < HRAM_START || address > HRAM_END)) && !self.dma_read_or_write {
+            return;
+        }
 
         match address {
             RAM_ENABLE_START ..= RAM_ENABLE_END => self.mbc_reg.ram_enable_reg = (data_to_write & 0xF) == 0xA,
@@ -156,7 +156,7 @@ impl Memory {
                         let ram_bank_num = data_to_write & 0x3;
                         self.sram = self.game_data.ram_banks[ram_bank_num as usize];
                     }
-                    _ => {}
+                    _ => { println!("The MBC Type was {:?}", &self.mbc_reg.mbc_type)}
                 }
             },
             BANKING_MODE_SEL_START ..= BANKING_MODE_SEL_END => {

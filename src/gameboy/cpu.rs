@@ -55,27 +55,33 @@ impl Cpu {
             return;
         }
 
-        if self.pc == 0x0156 {
-            println!("0x0516");
-        }
-        if self.pc == 0x037C {
-            println!("0x037C");
-        }
-        if self.pc == 0x0379 {
-            println!("0x0379");
-        }
-        if self.pc == 0x0381 {
-            println!("0x0381");
-        }
+        // if self.pc == 0x0379 {
+        //     println!("Right before the clear oam");
+        // }
+        // if self.pc == 0x49BD {
+        //     println!("Loading data into oam");
+        // }
+        // if self.pc == 0x037E {
+        //     println!("Right after clearing the oam and right before calling dma_proc")
+        // }
+        // if self.pc == 0x0381 {
+        //     println!("Right after calling dma_proc")
+        // }
+        // if self.pc == 0x0384 {
+        //     println!("Right before we check oam");
+        // }
+        // if self.pc == 0x0387 {
+        //     println!("Already checked oam do we need to fail or pass");
+        // }
 
         //Depending on what state you are in you have to do the work that corresponds to it
         match self.cpu_state.clone() {
             CpuState::Fetch => {
                 self.current_opcode = self.fetch(memory);
 
-                if self.current_opcode == 0x76 {
-                    println!("HALT");
-                }
+                // if self.current_opcode == 0x76 {
+                //     println!("HALT");
+                // }
 
                 if self.current_opcode == 0x10 {
                     println!("STOP");
