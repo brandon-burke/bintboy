@@ -147,16 +147,21 @@ impl Memory {
                     rom_bank_num = 1;
                 }
 
+                //Accounting for roms that are 1MiB+
+                if self.game_data.num_of_banks() > 32 {
+                    rom_bank_num += self.mbc_reg.ram_bank_num_reg << 5;
+                }
+
                 self.rom_bank_x = self.game_data.rom_banks[rom_bank_num as usize];
             },
             RAM_BANK_NUM_START ..= RAM_BANK_NUM_END => {
                 match (&self.mbc_reg.mbc_type, &self.mbc_reg.ram_size) {
-                    (MBC::RomOnly, _) => {}
+                    (MBC::RomOnly, _) => { println!("ROM ONLY MBC, NO SRAM")}
                     (MBC::MBC1, RAMSize::_32KiB) => {
                         let ram_bank_num = data_to_write & 0x3;
                         self.sram = self.game_data.ram_banks[ram_bank_num as usize];
                     }
-                    _ => { println!("The MBC Type was {:?}", &self.mbc_reg.mbc_type)}
+                    _ => { println!("Unimplemented MBC type {:?} and RAM Size {:?}", &self.mbc_reg.mbc_type, &self.mbc_reg.ram_size)}
                 }
             },
             BANKING_MODE_SEL_START ..= BANKING_MODE_SEL_END => {
@@ -305,6 +310,7 @@ impl Memory {
     }
 }
 
+#[derive(Debug)]
 pub struct MBCReg {
     pub mbc_type: MBC,
     pub ram_enable_reg: bool,

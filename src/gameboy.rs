@@ -42,6 +42,10 @@ impl Gameboy {
         self.memory.copy_game_data_to_rom(self.memory.game_data.rom_banks[0], self.memory.game_data.rom_banks[1]);
         self.memory.mbc_reg.bank_bit_mask = self.memory.game_data.bank_bit_mask();
         self.memory.mbc_reg.mbc_type = self.memory.game_data.cartridge_type();
+        self.memory.mbc_reg.ram_size = self.memory.game_data.ram_size();
+
+
+        println!("{:?}", self.memory.mbc_reg);
     }
 
     /**
@@ -137,13 +141,11 @@ impl Gameboy {
             if self.cpu.current_opcode == 0x40 {
                 if self.cpu.b == 66 && self.cpu.c == 66 && self.cpu.d == 66 
                     && self.cpu.e == 66 && self.cpu.h == 66 && self.cpu.l == 66 {
-                        //println!("Failed");
                     return TestStatus::Failed;
                 }
 
                 if self.cpu.b == 3 && self.cpu.c == 5 && self.cpu.d == 8 
                     && self.cpu.e == 13 && self.cpu.h == 21 && self.cpu.l == 34 {
-                        //println!("Pass");
                         return TestStatus::Pass;
                 }
             }

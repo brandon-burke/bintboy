@@ -78,7 +78,7 @@ impl Cpu {
         match self.cpu_state.clone() {
             CpuState::Fetch => {
                 self.current_opcode = self.fetch(memory);
-
+                
                 // if self.current_opcode == 0x76 {
                 //     println!("HALT");
                 // }
