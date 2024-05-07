@@ -33,14 +33,14 @@ fn main() {
 /* This is the entry point for the Game Boy emulator */
 fn start_emulator(rom_file_path: &str) {
     let mut gameboy = Gameboy::new();
-    gameboy.load_rom(rom_file_path);
+    gameboy.initialize(rom_file_path);
     gameboy.run();
 }
 
 /* This is the entry point for the Game Boy emulator */
 fn test_start_emulator(rom_file_path: &str) -> TestStatus {
     let mut gameboy = Gameboy::new();
-    gameboy.load_rom(rom_file_path);
+    gameboy.initialize(rom_file_path);
     gameboy.test_run()
 }
 

@@ -33,18 +33,18 @@ impl Gameboy {
     }
 
     /**
-     * This will load the game data from a file into the Game Boy. As well
-     * load the ROM memory region(0x0000 - 0x7FFF) on the game boy with the 
-     * first 16KB banks of the game data.
+     * This will load the game data's ram bank 0 and 1 into the gameboy. As well
+     * if SRAM is present, then it will load sram bank 0 into the gameboy. Finally
+     * this will also setup the mbc register for memory, which will house all 
+     * the information of the game cartridge
      */
-    pub fn load_rom(&mut self, rom_file_path: &str) {
+    pub fn initialize(&mut self, rom_file_path: &str) {
         self.memory.game_data.load_rom(rom_file_path);
-        self.memory.copy_game_data_to_rom(self.memory.game_data.rom_banks[0], self.memory.game_data.rom_banks[1]);
+        self.memory.initialize_game_data();
         self.memory.mbc_reg.bank_bit_mask = self.memory.game_data.bank_bit_mask();
         self.memory.mbc_reg.mbc_type = self.memory.game_data.cartridge_type();
         self.memory.mbc_reg.ram_size = self.memory.game_data.ram_size();
-
-
+        self.memory.mbc_reg.rom_size = self.memory.game_data.rom_size();
         println!("{:?}", self.memory.mbc_reg);
     }
 

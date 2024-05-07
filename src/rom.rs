@@ -26,8 +26,19 @@ impl GameCartridge {
         }
     }
 
-    pub fn rom_size(&self) -> u8 {
-        return self.rom_banks[0][0x148];
+    pub fn rom_size(&self) -> ROMSize {
+        match self.rom_banks[0][0x148] {
+            0x0 => ROMSize::_32KiB,
+            0x1 => ROMSize::_64KiB,
+            0x2 => ROMSize::_128KiB,
+            0x3 => ROMSize::_256KiB,
+            0x4 => ROMSize::_512KiB,
+            0x5 => ROMSize::_1MiB,
+            0x6 => ROMSize::_2MiB,
+            0x7 => ROMSize::_4MiB,
+            0x8 => ROMSize::_8MiB,
+            _ => panic!("Error unsupported number of banks")
+        }
     }
 
     pub fn ram_size(&self) -> RAMSize {
@@ -43,7 +54,7 @@ impl GameCartridge {
     }
 
     pub fn num_of_banks(&self) -> u16 {
-        match self.rom_size() {
+        match self.rom_banks[0][0x148] {
             0x0 => 2,
             0x1 => 4,
             0x2 => 8,
@@ -139,6 +150,7 @@ pub enum RAMSize {
     _128KiB,
 }
 
+#[derive(Debug)]
 pub enum ROMSize {
     _32KiB,
     _64KiB,
