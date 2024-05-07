@@ -61,5 +61,3 @@ impl Dma {
         self.currently_transferring = true;
     }
 }
-
-//FFB6

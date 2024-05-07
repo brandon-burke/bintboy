@@ -22,7 +22,7 @@ impl GameCartridge {
             0x05 ..= 0x06 => MBC2,
             0x0F ..= 0x13 => MBC3,
             0x19 ..= 0x1E => MBC5,
-            _ => panic!("Come on man I don't got time to support his MBC type"),
+            _ => panic!("Come on man I don't got time to support this MBC type"),
         }
     }
 
@@ -104,9 +104,24 @@ impl GameCartridge {
                 bank_num += 1;
             }
         }
+
+        //Finding num of ram banks
+        let num_ram_banks = match self.ram_size() {
+            _0KiB => 0,
+            _8KiB => 1,
+            _32KiB => 4,
+            _64KiB => 16,
+            _128KiB => 8,
+        };
+
+        //Creating the ram banks
+        for _ in 0..num_ram_banks {
+            self.ram_banks.push([0; 0x2000]);
+        }
     }
 }
 
+#[derive(Debug)]
 pub enum MBC {
     RomOnly,
     MBC1,
@@ -115,10 +130,23 @@ pub enum MBC {
     MBC5,
 }
 
+#[derive(Debug)]
 pub enum RAMSize {
     _0KiB,
     _8KiB,
     _32KiB,
     _64KiB,
     _128KiB,
+}
+
+pub enum ROMSize {
+    _32KiB,
+    _64KiB,
+    _128KiB,
+    _256KiB,
+    _512KiB,
+    _1MiB,
+    _2MiB,
+    _4MiB,
+    _8MiB,
 }

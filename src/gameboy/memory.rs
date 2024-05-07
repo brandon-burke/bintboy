@@ -55,7 +55,7 @@ impl Memory {
 
     pub fn read_byte(&self, address: u16) -> u8 {
         //Can't read anything below OAM while DMA is going
-        if self.dma.currently_transferring && address < OAM_START {
+        if (self.dma.currently_transferring && (address < HRAM_START || address > HRAM_END)) && !self.dma_read_or_write {
             return 0xFF;
         }
 
@@ -63,7 +63,7 @@ impl Memory {
             ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize],
             ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize],
             VRAM_START ..= VRAM_END => {
-                if self.ppu.current_mode() != PpuMode::DrawingPixels || !self.ppu.is_active() || self.dma_read_or_write {
+                if self.ppu.current_mode() != PpuMode::DrawingPixels || !self.ppu.is_active() {
                     match address {
                         TILE_DATA_0_START ..= TILE_DATA_0_END => self.ppu.read_tile_data_0(address),
                         TILE_DATA_1_START ..= TILE_DATA_1_END => self.ppu.read_tile_data_1(address),
@@ -135,7 +135,7 @@ impl Memory {
 
     pub fn write_byte(&mut self, address: u16, data_to_write: u8) {
         //Can't write anything below OAM while DMA is going
-        if self.dma.currently_transferring && address < OAM_START {
+        if (self.dma.currently_transferring && (address < HRAM_START || address > HRAM_END)) && !self.dma_read_or_write {
             return;
         }
 
@@ -147,16 +147,21 @@ impl Memory {
                     rom_bank_num = 1;
                 }
 
+                //Accounting for roms that are 1MiB+
+                if self.game_data.num_of_banks() > 32 {
+                    rom_bank_num += self.mbc_reg.ram_bank_num_reg << 5;
+                }
+
                 self.rom_bank_x = self.game_data.rom_banks[rom_bank_num as usize];
             },
             RAM_BANK_NUM_START ..= RAM_BANK_NUM_END => {
                 match (&self.mbc_reg.mbc_type, &self.mbc_reg.ram_size) {
-                    (MBC::RomOnly, _) => {}
+                    (MBC::RomOnly, _) => { println!("ROM ONLY MBC, NO SRAM")}
                     (MBC::MBC1, RAMSize::_32KiB) => {
                         let ram_bank_num = data_to_write & 0x3;
                         self.sram = self.game_data.ram_banks[ram_bank_num as usize];
                     }
-                    _ => {}
+                    _ => { println!("Unimplemented MBC type {:?} and RAM Size {:?}", &self.mbc_reg.mbc_type, &self.mbc_reg.ram_size)}
                 }
             },
             BANKING_MODE_SEL_START ..= BANKING_MODE_SEL_END => {
@@ -190,7 +195,7 @@ impl Memory {
                 }
             }
             OAM_START ..= OAM_END => {
-                if (self.ppu.current_mode() != PpuMode::OamScan && self.ppu.current_mode() != PpuMode::DrawingPixels) || !self.ppu.is_active() {
+                if (self.ppu.current_mode() != PpuMode::OamScan && self.ppu.current_mode() != PpuMode::DrawingPixels) || !self.ppu.is_active() || self.dma_read_or_write {
                     self.ppu.write_oam(address, data_to_write)
                 }
             },
@@ -305,6 +310,7 @@ impl Memory {
     }
 }
 
+#[derive(Debug)]
 pub struct MBCReg {
     pub mbc_type: MBC,
     pub ram_enable_reg: bool,

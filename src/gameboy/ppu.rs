@@ -50,8 +50,17 @@ impl Ppu {
     }
 
     pub fn cycle(&mut self) -> Option<PaletteColors> {
-        self.clk_ticks += 1;    //Keeps track of how many ticks during a mode
-
+        //self.clk_ticks += 1;    //Keeps track of how many ticks during a mode
+        let (clk_ticks, overflowed) = self.clk_ticks.overflowing_add(1);
+        if overflowed {
+            dbg!(self.current_mode());
+            dbg!(self.ppu_registers.x_scanline_coord);
+            dbg!(self.ppu_registers.ly);
+            dbg!(clk_ticks);
+            dbg!(self.penalty);
+            panic!();
+        }
+        self.clk_ticks = clk_ticks;
         match self.current_mode() {
             PpuMode::OamScan => {   //Mode 2
                 
@@ -82,25 +91,27 @@ impl Ppu {
                 }
             },
             PpuMode::DrawingPixels => { //Mode 3
-                //Set inital values when starting a draw
+                //Set initial values when starting a draw
                 if self.clk_ticks == 1 {
                     self.sprite_fifo.clear();
                     self.bg_window_fifo.clear();
+                    self.pixel_fetcher.drawing_window = self.pixel_fetcher.is_inside_window(&self.ppu_registers);
                     self.pixel_fetcher.x_coordinate = 0;
-                    //self.initial_pixel_shift = self.ppu_registers.scx % 8;
+                    self.pixel_fetcher.win_x_coordinate = 0;
+                    self.initial_pixel_shift = self.ppu_registers.scx % 8;
                     self.penalty = 12;
                 }
 
                 if self.penalty > 0 {
-                    //println!("there's a penalty");
                     self.penalty -= 1;
                 } else {
                     //Clearing fifo if were doing a transition from bg to win or vice versa
                     if self.pixel_fetcher.bg_or_win_transition(&self.ppu_registers) {
                         self.bg_window_fifo.clear();
                         if self.pixel_fetcher.is_bg_to_win(&self.ppu_registers) {
-                            self.penalty = 6;
+                            self.penalty += 5; //The penalty is 6 but we already started the clk tick, so this will current clk tick counts towards the penalty
                             self.stat_interrupt_req = self.raise_interrupt();
+                            self.pixel_fetcher.early_transition(&self.ppu_registers);
                             return None;
                         }
                     }
@@ -161,7 +172,7 @@ impl Ppu {
                                     }
                                 },
                                 SpritePriority::OverBg => {
-                                    if pixel.color_id != TRANSPARENT {
+                                    if sprite_pixel.color_id != TRANSPARENT {
                                         self.bg_window_fifo[pixel_idx] = sprite_pixel;
                                     }
                                 },
@@ -200,10 +211,15 @@ impl Ppu {
                     let mut pixel = Some(final_pixel_color);
                     if self.initial_pixel_shift > 0 {
                         self.initial_pixel_shift -= 1;
-                        pixel = None;
+                        if self.pixel_fetcher.drawing_window {
+                            self.ppu_registers.x_scanline_coord += 1;
+                        } else {
+                            pixel = None;
+                        }
+                    } else {
+                        self.ppu_registers.x_scanline_coord += 1;
                     }
 
-                    self.ppu_registers.x_scanline_coord += 1;
                     if self.ppu_registers.x_scanline_coord == 160 {
                         self.ppu_registers.x_scanline_coord = 0;
                         self.ppu_registers.set_mode(PpuMode::Hblank);

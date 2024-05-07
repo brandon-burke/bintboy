@@ -12,7 +12,6 @@ pub struct Timer {
     pub interrupted_requested: bool,
     tima_a_cycle_write_occurred: bool,
     tima_write_value: u8,
-    cycle: u8,
 }
 
 impl Timer {
@@ -32,7 +31,6 @@ impl Timer {
             interrupted_requested: false,
             tima_a_cycle_write_occurred: false,
             tima_write_value: 0,
-            cycle: 0,
         }
     }
 

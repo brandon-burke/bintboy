@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn run_individual_mooneye_roms() {
-        let path = "test_roms/acceptance/oam_dma";
+        let path = "test_roms/acceptance/timer";
         let paths = fs::read_dir(path).unwrap();
         let mut tests = vec![];
         for path in paths {

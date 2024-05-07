@@ -130,7 +130,8 @@ impl InterruptHandler {
     }
 
     pub fn write_if_reg(&mut self, data_to_write: u8) {
-        self.if_reg = (self.if_reg & 0xE0) | (data_to_write & 0x1F); 
+        self.if_reg = (self.if_reg & 0xE0) | (data_to_write & 0x1F);
+        println!("{:?}",self.if_reg);
     }
 
     pub fn read_if_reg(&self) -> u8 {

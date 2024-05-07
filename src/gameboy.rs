@@ -10,7 +10,7 @@ mod opcodes;
 mod binary_utils;
 mod constants;
 
-use minifb::{Key, ScaleMode, Window, WindowOptions};
+use minifb::{Key, Scale, ScaleMode, Window, WindowOptions};
 
 use crate::gameboy::cpu::{Cpu, cpu_state};
 use crate::gameboy::memory::Memory;
@@ -42,6 +42,10 @@ impl Gameboy {
         self.memory.copy_game_data_to_rom(self.memory.game_data.rom_banks[0], self.memory.game_data.rom_banks[1]);
         self.memory.mbc_reg.bank_bit_mask = self.memory.game_data.bank_bit_mask();
         self.memory.mbc_reg.mbc_type = self.memory.game_data.cartridge_type();
+        self.memory.mbc_reg.ram_size = self.memory.game_data.ram_size();
+
+
+        println!("{:?}", self.memory.mbc_reg);
     }
 
     /**
@@ -49,15 +53,13 @@ impl Gameboy {
      * rom file for it to run
      */
     pub fn run(&mut self) {
-        let mut buffer = vec![0u32; WIDTH * HEIGHT];
+        let mut buffer = vec![0u32; WIDTH * WIDTH];
         let mut buffer_index: usize = 0;
         let buff_max = WIDTH * HEIGHT;
         let mut window = Self::initialize_window();
         self.memory.ppu.activate_ppu();
         
         while window.is_open() && !window.is_key_down(Key::Escape) {
-            let new_size = window.get_size();
-
             self.memory.timer_cycle();
             self.memory.dma_cycle();
             self.memory.joypad_cycle(&window);
@@ -67,7 +69,7 @@ impl Gameboy {
 
             if buffer_index == buff_max {
                 buffer_index = 0;
-                window.update_with_buffer(&buffer, new_size.0, new_size.1).unwrap();
+                window.update_with_buffer(&buffer, WIDTH, HEIGHT).unwrap();
             }
 
             //Only try to service an interrupt if you finished an instruction
@@ -88,8 +90,10 @@ impl Gameboy {
             WIDTH,
             HEIGHT,
             WindowOptions {
-                resize: true,
-                scale_mode: ScaleMode::UpperLeft,
+                resize: false,
+                title: true,
+                scale: Scale::X4,
+                scale_mode: ScaleMode::Stretch,
                 ..WindowOptions::default()
             },
         )
@@ -99,11 +103,8 @@ impl Gameboy {
 
         return window;
     }
-
-
-
-
-        /**
+    
+    /**
      * This is the starting point for the Game Boy. You just need to give it a
      * rom file for it to run
      */
@@ -112,6 +113,7 @@ impl Gameboy {
         let mut buffer_index: usize = 0;
         let buff_max = WIDTH * HEIGHT;
         let mut window = Self::initialize_window();
+        self.memory.ppu.activate_ppu();
         
         while window.is_open() && !window.is_key_down(Key::Escape) {
             let new_size = window.get_size();
@@ -139,13 +141,11 @@ impl Gameboy {
             if self.cpu.current_opcode == 0x40 {
                 if self.cpu.b == 66 && self.cpu.c == 66 && self.cpu.d == 66 
                     && self.cpu.e == 66 && self.cpu.h == 66 && self.cpu.l == 66 {
-                        //println!("Failed");
                     return TestStatus::Failed;
                 }
 
                 if self.cpu.b == 3 && self.cpu.c == 5 && self.cpu.d == 8 
                     && self.cpu.e == 13 && self.cpu.h == 21 && self.cpu.l == 34 {
-                        //println!("Pass");
                         return TestStatus::Pass;
                 }
             }
