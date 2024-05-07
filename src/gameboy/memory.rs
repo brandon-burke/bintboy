@@ -6,7 +6,7 @@ use crate::gameboy::dma::Dma;
 use crate::gameboy::ppu::{ Ppu, enums::PpuMode };
 use crate::gameboy::interrupt_handler::InterruptHandler;
 use crate::gameboy::constants::*;
-use crate::rom::{MBC, RAMSize, GameCartridge};
+use crate::rom::{GameCartridge, RAMSize, ROMSize, MBC};
 
 pub struct Memory {
     rom_bank_0: [u8; 0x4000],                   //16KB -> 0000h – 3FFFh (Non-switchable ROM bank)
@@ -152,14 +152,30 @@ impl Memory {
                     rom_bank_num += self.mbc_reg.ram_bank_num_reg << 5;
                 }
 
-                self.rom_bank_x = self.game_data.rom_banks[rom_bank_num as usize];
+                self.mbc_reg.rom_bank_num_reg = rom_bank_num;
+                if self.mbc_reg.banking_mode_sel_reg == 1 {
+                    match rom_bank_num {
+                        0x20 | 0x40 | 0x60 => self.rom_bank_0 = self.game_data.rom_banks[rom_bank_num as usize],
+                        _ => self.rom_bank_x = self.game_data.rom_banks[rom_bank_num as usize],
+                    }
+                } else {
+                    self.rom_bank_x = self.game_data.rom_banks[rom_bank_num as usize];
+                }
             },
             RAM_BANK_NUM_START ..= RAM_BANK_NUM_END => {
                 match (&self.mbc_reg.mbc_type, &self.mbc_reg.ram_size) {
                     (MBC::RomOnly, _) => { println!("ROM ONLY MBC, NO SRAM")}
                     (MBC::MBC1, RAMSize::_32KiB) => {
-                        let ram_bank_num = data_to_write & 0x3;
-                        self.sram = self.game_data.ram_banks[ram_bank_num as usize];
+                        if self.mbc_reg.banking_mode_sel_reg == 1 {
+                            let ram_bank_num = data_to_write & 0x3;
+                            self.game_data.ram_banks[self.mbc_reg.ram_bank_num_reg as usize] = self.sram;
+                            self.mbc_reg.ram_bank_num_reg = ram_bank_num;
+                            self.sram = self.game_data.ram_banks[ram_bank_num as usize];
+                        } else {
+                            self.game_data.ram_banks[self.mbc_reg.ram_bank_num_reg as usize] = self.sram;
+                            self.sram = self.game_data.ram_banks[0];
+                            self.mbc_reg.ram_bank_num_reg = 0;
+                        }
                     }
                     _ => { println!("Unimplemented MBC type {:?} and RAM Size {:?}", &self.mbc_reg.mbc_type, &self.mbc_reg.ram_size)}
                 }
@@ -304,9 +320,16 @@ impl Memory {
     }
 
 
-    pub fn copy_game_data_to_rom(&mut self, bank_0: [u8; 0x4000], bank_1: [u8; 0x4000]) {
-        self.rom_bank_0 = bank_0;
-        self.rom_bank_x = bank_1;
+    /**
+     * This will load in bank 0 and 1 of the game data rom. As well if avaliable,
+     * it will load in sram bank 0.
+     */
+    pub fn initialize_game_data(&mut self) {
+        self.rom_bank_0 = self.game_data.rom_banks[0];
+        self.rom_bank_x = self.game_data.rom_banks[1];
+        if self.game_data.ram_banks.len() != 0 {
+            self.sram = self.game_data.ram_banks[0];
+        }
     }
 }
 
@@ -319,6 +342,7 @@ pub struct MBCReg {
     pub banking_mode_sel_reg: u8,
     pub bank_bit_mask: u16,
     pub ram_size: RAMSize,
+    pub rom_size: ROMSize,
 }
 
 impl MBCReg {
@@ -331,6 +355,7 @@ impl MBCReg {
             banking_mode_sel_reg: 0,
             bank_bit_mask: 0,
             ram_size: RAMSize::_0KiB,
+            rom_size: ROMSize::_32KiB,
         }
     }
 }
