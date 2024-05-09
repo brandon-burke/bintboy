@@ -3,6 +3,7 @@ mod rom;
 
 use crate::gameboy::Gameboy;
 use clap::Parser;
+use colored::*;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -52,6 +53,8 @@ enum TestStatus {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use colored::Colorize;
+
     use crate::{test_start_emulator, TestStatus};
 
     /*
@@ -94,23 +97,33 @@ mod tests {
 
     #[test]
     fn run_individual_mooneye_roms() {
-        let path = "test_roms/acceptance/timer";
-        let paths = fs::read_dir(path).unwrap();
+        let path_list = vec![("test_roms/acceptance/bits", "BITS TEST"), ("test_roms/acceptance/instr", "INSTR TEST"), ("test_roms/acceptance/oam_dma", "OAM_DMA TEST"), ("test_roms/acceptance/timer", "TIMER TEST")];
         let mut tests = vec![];
-        for path in paths {
-            let path = path.unwrap().path();
-            if path.is_file() && path.extension().unwrap() == "gb" {
-                //println!("Reading {}", &path.display().to_string());
-                let result = match test_start_emulator(&path.display().to_string()) {
-                    TestStatus::Failed => "Failed",
-                    TestStatus::Pass => "Pass",
-                };
-                tests.push((path.file_name().unwrap().to_str().unwrap().to_owned(), result))
+        for (path, test_name) in path_list {
+            let paths = fs::read_dir(path).unwrap();
+            for path in paths {
+                let path = path.unwrap().path();
+                if path.is_file() && path.extension().unwrap() == "gb" {
+                    //println!("Reading {}", &path.display().to_string());
+                    let result = match test_start_emulator(&path.display().to_string()) {
+                        TestStatus::Failed => "Failed",
+                        TestStatus::Pass => "Pass",
+                    };
+                    tests.push(((path.display().to_string(), test_name), result))
+                }
             }
         }
-    
+
         let mut num_of_failures = 0;
-        for (test, status) in tests {
+        let mut test_section = String::new();
+        for ((test, test_name), status) in tests {
+            if test_name != test_section {
+                test_section = test_name.to_owned();
+                let msg = format!("\nTesting {} section:", test_section);
+                println!("{}", msg.red());
+                println!("===============================");
+            }
+
             if status == "Failed" {
                 num_of_failures += 1;
             }
@@ -118,14 +131,15 @@ mod tests {
         }
     
         if num_of_failures == 0 {
-            println!("\n*** ALL TESTS PASSED ***");
+            println!("\n*** ALL TESTS PASSED ***\n\n");
+            assert!(true);
         } else {
             if num_of_failures == 1 {
-                println!("\n*** {num_of_failures} TEST FAILURE ***");
+                println!("\n*** {num_of_failures} TEST FAILURE ***\n\n");
             } else {
-                println!("\n*** {num_of_failures} TESTS FAILURES ***");
+                println!("\n*** {num_of_failures} TESTS FAILURES ***\n\n");
             }
+            assert!(false);
         }
     }
 }
-
