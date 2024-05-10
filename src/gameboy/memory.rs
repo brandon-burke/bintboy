@@ -54,8 +54,8 @@ impl Memory {
     }
 
     pub fn read_byte(&self, address: u16) -> u8 {
-        //Can't read anything below OAM while DMA is going
-        if (self.dma.currently_transferring && (address < HRAM_START || address > HRAM_END)) && !self.dma_read_or_write {
+        //Can't read anything except HRAM and the DMA register
+        if (self.dma.currently_transferring && address != DMA && (address < HRAM_START || address > HRAM_END)) && !self.dma_read_or_write {
             return 0xFF;
         }
 
@@ -135,7 +135,7 @@ impl Memory {
 
     pub fn write_byte(&mut self, address: u16, data_to_write: u8) {
         //Can't write anything below OAM while DMA is going
-        if (self.dma.currently_transferring && (address < HRAM_START || address > HRAM_END)) && !self.dma_read_or_write {
+        if (self.dma.currently_transferring && address != DMA && (address < HRAM_START || address > HRAM_END)) && !self.dma_read_or_write {
             return;
         }
 

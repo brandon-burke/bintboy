@@ -92,14 +92,14 @@ impl Gameboy {
             WindowOptions {
                 resize: false,
                 title: true,
-                scale: Scale::X1,
+                scale: Scale::X4,
                 scale_mode: ScaleMode::Stretch,
                 ..WindowOptions::default()
             },
         )
             .expect("Unable to create the window");
 
-        window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+        window.limit_update_rate(Some(std::time::Duration::from_micros(16666)));
 
         return window;
     }
@@ -112,7 +112,7 @@ impl Gameboy {
         let mut buffer = vec![0u32; WIDTH * HEIGHT];
         let mut buffer_index: usize = 0;
         let buff_max = WIDTH * HEIGHT;
-        let mut window = Self::initialize_window();
+        let mut window = Self::test_initialize_window();
         self.memory.ppu.activate_ppu();
         
         while window.is_open() && !window.is_key_down(Key::Escape) {
@@ -127,7 +127,7 @@ impl Gameboy {
 
             if buffer_index == buff_max {
                 buffer_index = 0;
-                window.update_with_buffer(&buffer, new_size.0, new_size.1).unwrap();
+                //window.update_with_buffer(&buffer, new_size.0, new_size.1).unwrap();
             }
             //Only try to service an interrupt if you finished an instruction
             match self.cpu.cpu_state {
@@ -152,6 +152,26 @@ impl Gameboy {
         }
 
         return TestStatus::Pass;
+    }
+
+    fn test_initialize_window() -> Window {
+        let mut window = Window::new(
+            "Noise Test - Press ESC to exit",
+            WIDTH,
+            HEIGHT,
+            WindowOptions {
+                resize: false,
+                title: true,
+                scale: Scale::X1,
+                scale_mode: ScaleMode::Stretch,
+                ..WindowOptions::default()
+            },
+        )
+            .expect("Unable to create the window");
+
+        window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+
+        return window;
     }
 
 }

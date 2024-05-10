@@ -51,9 +51,13 @@ impl Dma {
 
     /**
      * If we write to DMA during an active transfer then we cancel the current
-     * transfer 
+     * transfer. As well protection against source addresses over 0xFE00
      */
-    pub fn write_source_address(&mut self, value: u8) {
+    pub fn write_source_address(&mut self, mut value: u8) {
+        if value >= 0xFE {
+            value &= 0xDF;
+        }
+
         self.src_address_reg = value;
         self.current_address_offset = 0;
         self.clk_ticks_before_write = 0;

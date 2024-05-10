@@ -50,17 +50,8 @@ impl Ppu {
     }
 
     pub fn cycle(&mut self) -> Option<PaletteColors> {
-        //self.clk_ticks += 1;    //Keeps track of how many ticks during a mode
-        let (clk_ticks, overflowed) = self.clk_ticks.overflowing_add(1);
-        if overflowed {
-            dbg!(self.current_mode());
-            dbg!(self.ppu_registers.x_scanline_coord);
-            dbg!(self.ppu_registers.ly);
-            dbg!(clk_ticks);
-            dbg!(self.penalty);
-            panic!();
-        }
-        self.clk_ticks = clk_ticks;
+        self.clk_ticks += 1;    //Keeps track of how many ticks during a mode
+
         match self.current_mode() {
             PpuMode::OamScan => {   //Mode 2
                 

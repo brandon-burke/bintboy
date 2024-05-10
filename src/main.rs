@@ -120,24 +120,29 @@ mod tests {
             if test_name != test_section {
                 test_section = test_name.to_owned();
                 let msg = format!("\nTesting {} section:", test_section);
-                println!("{}", msg.red());
+                println!("{}", msg.bright_cyan());
                 println!("===============================");
             }
 
             if status == "Failed" {
                 num_of_failures += 1;
+                println!("{}: {}", test, status.red());
+            } else {
+                println!("{}: {}", test, status.green()); 
             }
-            println!("{}: {}", test, status);
         }
     
         if num_of_failures == 0 {
-            println!("\n*** ALL TESTS PASSED ***\n\n");
+            let msg = String::from("\n*** ALL TESTS PASSED ***\n\n");
+            println!("{}", msg.green());
             assert!(true);
         } else {
             if num_of_failures == 1 {
-                println!("\n*** {num_of_failures} TEST FAILURE ***\n\n");
+                let msg = format!("\n*** {num_of_failures} TEST FAILURE ***\n\n");
+                println!("{}", msg.red());
             } else {
-                println!("\n*** {num_of_failures} TESTS FAILURES ***\n\n");
+                let msg = format!("\n*** {num_of_failures} TESTS FAILURES ***\n\n");
+                println!("{}", msg.red());
             }
             assert!(false);
         }
