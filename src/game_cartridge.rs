@@ -1,6 +1,8 @@
+mod mbc;
+
 use std::{fs::File, io::{Read, Seek, SeekFrom}};
-use crate::rom::MBC::*;
-use crate::rom::RAMSize::{_0KiB, _128KiB, _32KiB, _64KiB, _8KiB};
+use crate::game_cartridge::MBC::*;
+use crate::game_cartridge::RAMSize::{_0KiB, _128KiB, _32KiB, _64KiB, _8KiB};
 
 pub struct GameCartridge {
     pub rom_banks: Vec<[u8; 0x4000]>,
@@ -141,7 +143,7 @@ pub enum MBC {
     MBC5,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub enum RAMSize {
     _0KiB,
     _8KiB,
@@ -150,7 +152,7 @@ pub enum RAMSize {
     _128KiB,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub enum ROMSize {
     _32KiB,
     _64KiB,

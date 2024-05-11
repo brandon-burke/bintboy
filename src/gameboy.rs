@@ -99,7 +99,7 @@ impl Gameboy {
         )
             .expect("Unable to create the window");
 
-        window.limit_update_rate(Some(std::time::Duration::from_micros(6944)));
+        window.limit_update_rate(Some(std::time::Duration::from_micros(16666)));
 
         return window;
     }

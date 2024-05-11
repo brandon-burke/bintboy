@@ -1,5 +1,5 @@
 mod gameboy;
-mod rom;
+mod game_cartridge;
 
 use crate::gameboy::Gameboy;
 use clap::Parser;
@@ -100,7 +100,8 @@ mod tests {
                             ("test_roms/acceptance/instr", "INSTR TEST"), 
                             ("test_roms/acceptance/oam_dma", "OAM_DMA TEST"), 
                             ("test_roms/acceptance/timer", "TIMER TEST"), 
-                            ("test_roms/acceptance/interrupts", "INTERRUPT TEST")];
+                            ("test_roms/acceptance/interrupts", "INTERRUPT TEST"),
+                            ];
                             
         let mut tests = vec![];
         for (path, test_name) in path_list {

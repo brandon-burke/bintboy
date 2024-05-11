@@ -6,7 +6,7 @@ use crate::gameboy::dma::Dma;
 use crate::gameboy::ppu::{ Ppu, enums::PpuMode };
 use crate::gameboy::interrupt_handler::InterruptHandler;
 use crate::gameboy::constants::*;
-use crate::rom::{GameCartridge, RAMSize, ROMSize, MBC};
+use crate::game_cartridge::{GameCartridge, RAMSize, ROMSize, MBC};
 
 pub struct Memory {
     rom_bank_0: [u8; 0x4000],                   //16KB -> 0000h – 3FFFh (Non-switchable ROM bank)
