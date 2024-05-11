@@ -3,7 +3,6 @@ mod rom;
 
 use crate::gameboy::Gameboy;
 use clap::Parser;
-use colored::*;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -97,7 +96,12 @@ mod tests {
 
     #[test]
     fn run_individual_mooneye_roms() {
-        let path_list = vec![("test_roms/acceptance/bits", "BITS TEST"), ("test_roms/acceptance/instr", "INSTR TEST"), ("test_roms/acceptance/oam_dma", "OAM_DMA TEST"), ("test_roms/acceptance/timer", "TIMER TEST")];
+        let path_list = vec![("test_roms/acceptance/bits", "BITS TEST"), 
+                            ("test_roms/acceptance/instr", "INSTR TEST"), 
+                            ("test_roms/acceptance/oam_dma", "OAM_DMA TEST"), 
+                            ("test_roms/acceptance/timer", "TIMER TEST"), 
+                            ("test_roms/acceptance/interrupts", "INTERRUPT TEST")];
+                            
         let mut tests = vec![];
         for (path, test_name) in path_list {
             let paths = fs::read_dir(path).unwrap();

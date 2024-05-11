@@ -133,7 +133,11 @@ impl InterruptHandler {
         self.if_reg = (self.if_reg & 0xE0) | (data_to_write & 0x1F);
     }
 
+    /**
+     * Returning the Interrupt Flags register values. Only the 5 lower bits 
+     * are R/W. The others always return 1;A
+     */
     pub fn read_if_reg(&self) -> u8 {
-        self.if_reg
+        self.if_reg | 0xE0
     }
 }

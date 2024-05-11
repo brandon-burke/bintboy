@@ -127,9 +127,9 @@ impl PixelFetcher {
 
         //Figuring out what row of pixels we need to get. Accounting for flipping vertically
         let row_idx = match sprite.y_flip {
-            Orientation::Normal => ppu_registers.ly - ((ppu_registers.ly / 8) * 8),
+            Orientation::Normal => (ppu_registers.ly + 16) - sprite.y_pos,
             Orientation::Mirrored => {
-                tile.pixel_rows.len() as u8  - (ppu_registers.ly - ((ppu_registers.ly / 8) * 8)) - 1
+                7 - ((ppu_registers.ly + 16) - sprite.y_pos)
             },
         };
         let tile_row = tile.pixel_rows[row_idx as usize];
