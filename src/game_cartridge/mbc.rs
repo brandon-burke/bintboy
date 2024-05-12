@@ -11,6 +11,7 @@ pub trait MBCController {
     fn write_0x2000_to_0x3fff(&mut self, value: u8);
     fn write_0x4000_to_0x5fff(&mut self, value: u8);
     fn write_0x6000_to_0x7fff(&mut self, value: u8);
+    fn is_ram_enabled(&self) -> bool;
 }
 
 #[derive(Debug)]
@@ -22,6 +23,20 @@ pub struct MBC1 {
     ram_size: RAMSize,
     rom_size: ROMSize,
     bank_bit_mask: u16,
+}
+
+impl MBC1 {
+    pub fn new() -> Self {
+        Self {
+            ram_enable: false,
+            rom_bank_num: 0,
+            ram_bank_num: 0,
+            banking_mode_sel: 0,
+            ram_size: RAMSize::_0KiB,
+            rom_size: ROMSize::_32KiB,
+            bank_bit_mask: 0,
+        }
+    }
 }
 
 impl MBCController for MBC1 {
@@ -71,16 +86,47 @@ impl MBCController for MBC1 {
     fn write_0x6000_to_0x7fff(&mut self, value: u8) {
         todo!()
     }
-}
-
-pub struct MBC2 {
     
+    fn is_ram_enabled(&self) -> bool {
+        return self.ram_enable;
+    }
 }
 
+#[derive(Debug)]
+pub struct MBC2 {
+
+}
+
+impl MBC2 {
+    pub fn new() -> Self {
+        Self {
+
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct MBC3 {
 
 }
 
+impl MBC3 {
+    pub fn new() -> Self {
+        Self {
+            
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct MBC5 {
 
+}
+
+impl MBC5 {
+    pub fn new() -> Self {
+        Self {
+            
+        }
+    }
 }

@@ -6,7 +6,7 @@ use crate::gameboy::dma::Dma;
 use crate::gameboy::ppu::{ Ppu, enums::PpuMode };
 use crate::gameboy::interrupt_handler::InterruptHandler;
 use crate::gameboy::constants::*;
-use crate::game_cartridge::{GameCartridge, RAMSize, ROMSize, MBC};
+use crate::game_cartridge::{GameCartridge, mbc::MBCController};
 
 pub struct Memory {
     rom_bank_0: [u8; 0x4000],                   //16KB -> 0000h – 3FFFh (Non-switchable ROM bank)
@@ -24,8 +24,7 @@ pub struct Memory {
     io: [u8; 0x80],                             //     -> FF00h – FF7Fh (I/O ports)
     pub interrupt_handler: InterruptHandler,    //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
     hram: [u8; 0x7F],                           //     -> FF80h – FFFEh (HRAM)
-    pub game_data: GameCartridge,
-    pub mbc_reg: MBCReg,                        //Holds all the registers that are important for bank switching\
+    pub game_cartridge: GameCartridge,
     dma_read_or_write: bool,
 }
 
@@ -47,8 +46,7 @@ impl Memory {
             interrupt_handler: InterruptHandler::new(),
             dma: Dma::new(),
             hram: [0; 0x7F],
-            game_data: GameCartridge::new(),
-            mbc_reg: MBCReg::new(),
+            game_cartridge: GameCartridge::new(),
             dma_read_or_write: false,
         }
     }
@@ -77,7 +75,7 @@ impl Memory {
                 }
             },
             SRAM_START ..= SRAM_END => {
-                if self.mbc_reg.ram_enable_reg {
+                if self.game_cartridge {
                     self.sram[(address - SRAM_START) as usize]
                 } else {
                     0xFF
@@ -319,17 +317,13 @@ impl Memory {
         }
     }
 
-
     /**
-     * This will load in bank 0 and 1 of the game data rom. As well if avaliable,
-     * it will load in sram bank 0.
+     * Loading the game data and setting up the rom banks
      */
-    pub fn initialize_game_data(&mut self) {
-        self.rom_bank_0 = self.game_data.rom_banks[0];
-        self.rom_bank_x = self.game_data.rom_banks[1];
-        if self.game_data.ram_banks.len() != 0 {
-            self.sram = self.game_data.ram_banks[0];
-        }
+    pub fn load_game(&mut self, cartridge: GameCartridge) {
+        self.game_cartridge = cartridge;
+        self.rom_bank_0 = self.game_cartridge.rom_banks[0];
+        self.rom_bank_x = self.game_cartridge.rom_banks[1];
     }
 }
 

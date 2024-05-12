@@ -12,9 +12,10 @@ mod constants;
 
 use minifb::{Key, Scale, ScaleMode, Window, WindowOptions};
 
+use crate::game_cartridge::GameCartridge;
 use crate::gameboy::cpu::{Cpu, cpu_state};
 use crate::gameboy::memory::Memory;
-use crate::TestStatus;
+use crate::{game_cartridge, TestStatus};
 
 const WIDTH: usize = 160;
 const HEIGHT: usize = 144;
@@ -33,19 +34,14 @@ impl Gameboy {
     }
 
     /**
-     * This will load the game data's ram bank 0 and 1 into the gameboy. As well
-     * if SRAM is present, then it will load sram bank 0 into the gameboy. Finally
-     * this will also setup the mbc register for memory, which will house all 
-     * the information of the game cartridge
+     * Loading the game cartridge from the file path specified. As well loading
+     * the gameboys 2 rom banks with the inital values.
      */
     pub fn initialize(&mut self, rom_file_path: &str) {
-        self.memory.game_data.load_rom(rom_file_path);
-        self.memory.initialize_game_data();
-        self.memory.mbc_reg.bank_bit_mask = self.memory.game_data.bank_bit_mask();
-        self.memory.mbc_reg.mbc_type = self.memory.game_data.cartridge_type();
-        self.memory.mbc_reg.ram_size = self.memory.game_data.ram_size();
-        self.memory.mbc_reg.rom_size = self.memory.game_data.rom_size();
-        println!("{:?}", self.memory.mbc_reg);
+        let mut game_cartridge = GameCartridge::new();
+        game_cartridge.load_cartridge(rom_file_path);
+
+        self.memory.load_game(game_cartridge);
     }
 
     /**
