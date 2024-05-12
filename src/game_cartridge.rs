@@ -1,12 +1,14 @@
 mod mbc;
+mod enums;
 
 use std::{fs::File, io::{Read, Seek, SeekFrom}};
-use crate::game_cartridge::MBC::*;
-use crate::game_cartridge::RAMSize::{_0KiB, _128KiB, _32KiB, _64KiB, _8KiB};
+
+use self::enums::MBC;
 
 pub struct GameCartridge {
     pub rom_banks: Vec<[u8; 0x4000]>,
-    pub ram_banks: Vec<[u8; 0x2000]>
+    pub ram_banks: Vec<[u8; 0x2000]>,
+    mbc: MBC,
 }
 
 impl GameCartridge {
@@ -14,16 +16,17 @@ impl GameCartridge {
         Self {
             rom_banks: vec![],
             ram_banks: vec![],
+            mbc: MBC::RomOnly,
         }
     }
 
     pub fn cartridge_type(&self) -> MBC {
         match self.rom_banks[0][0x147] {
-            0x00 => RomOnly,
-            0x01 ..= 0x03 => MBC1,
-            0x05 ..= 0x06 => MBC2,
-            0x0F ..= 0x13 => MBC3,
-            0x19 ..= 0x1E => MBC5,
+            0x00 => MBC::RomOnly,
+            0x01 ..= 0x03 => MBC::MBC1,
+            0x05 ..= 0x06 => MBC::MBC2,
+            0x0F ..= 0x13 => MBC::MBC3,
+            0x19 ..= 0x1E => MBC::MBC5,
             _ => panic!("Come on man I don't got time to support this MBC type"),
         }
     }
@@ -132,35 +135,4 @@ impl GameCartridge {
             self.ram_banks.push([0; 0x2000]);
         }
     }
-}
-
-#[derive(Debug)]
-pub enum MBC {
-    RomOnly,
-    MBC1,
-    MBC2,
-    MBC3,
-    MBC5,
-}
-
-#[derive(Debug, PartialEq, PartialOrd)]
-pub enum RAMSize {
-    _0KiB,
-    _8KiB,
-    _32KiB,
-    _64KiB,
-    _128KiB,
-}
-
-#[derive(Debug, PartialEq, PartialOrd)]
-pub enum ROMSize {
-    _32KiB,
-    _64KiB,
-    _128KiB,
-    _256KiB,
-    _512KiB,
-    _1MiB,
-    _2MiB,
-    _4MiB,
-    _8MiB,
 }

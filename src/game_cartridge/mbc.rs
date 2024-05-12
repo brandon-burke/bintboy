@@ -1,4 +1,4 @@
-use super::{RAMSize, ROMSize};
+use super::enums::{RAMSize, ROMSize};
 
 /**
  * This trait gives a general approach to creating a MBC controller. These address
@@ -13,6 +13,7 @@ pub trait MBCController {
     fn write_0x6000_to_0x7fff(&mut self, value: u8);
 }
 
+#[derive(Debug)]
 pub struct MBC1 {
     ram_enable: bool,
     rom_bank_num: u8,
@@ -35,7 +36,7 @@ impl MBCController for MBC1 {
     /**
      * This will write and change the current rom bank number for the switchable
      * rom bank in the Game Boy. The rom bank num cannot be written the value of 
-     * 0, as rom bank 0 is permenately mapped to the NON-switchable bank 0 in the Game Boy. BUT a 
+     * 0, as rom bank 0 is permanately mapped to the NON-switchable bank 0 in the Game Boy. BUT a 
      * weird quirk exists, where you can make this happen and the game cartridge's 
      * bank 0 is copied to the switchable rom bank in the Game Boy
      */
@@ -52,7 +53,7 @@ impl MBCController for MBC1 {
             rom_bank_num += self.ram_bank_num << 5;
         }
 
-        // self.rom_bank_num_reg = rom_bank_num;
+        // self.rom_bank_num = rom_bank_num;
         // if self.banking_mode_sel == 1 {
         //     match rom_bank_num {
         //         0x20 | 0x40 | 0x60 => self.rom_bank_0 = self.game_data.rom_banks[rom_bank_num as usize],
@@ -72,14 +73,14 @@ impl MBCController for MBC1 {
     }
 }
 
+pub struct MBC2 {
+    
+}
 
-// pub struct MBCReg {
-//     pub mbc_type: MBC,
-//     pub ram_enable_reg: bool,
-//     pub ram_bank_num_reg: u8,
-//     pub rom_bank_num_reg: u8,
-//     pub banking_mode_sel_reg: u8,
-//     pub bank_bit_mask: u16,
-//     pub ram_size: RAMSize,
-//     pub rom_size: ROMSize,
-// }
+pub struct MBC3 {
+
+}
+
+pub struct MBC5 {
+
+}
