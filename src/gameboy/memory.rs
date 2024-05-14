@@ -6,11 +6,10 @@ use crate::gameboy::dma::Dma;
 use crate::gameboy::ppu::{ Ppu, enums::PpuMode };
 use crate::gameboy::interrupt_handler::InterruptHandler;
 use crate::gameboy::constants::*;
-use crate::game_cartridge::{GameCartridge, mbc::MBCController};
+use crate::game_cartridge::GameCartridge;
 
 pub struct Memory {
-    rom_bank_0: [u8; 0x4000],                   //16KB -> 0000h – 3FFFh (Non-switchable ROM bank)
-    rom_bank_x: [u8; 0x4000],                   //16KB -> 4000h – 7FFFh (Switchable ROM bank)
+    pub game_cartridge: GameCartridge,          //16KB -> 0000h – 3FFFh (Non-switchable ROM bank), 16KB -> 4000h – 7FFFh (Switchable ROM bank)
     sram: [u8; 0x2000],                         //8KB  -> A000h – BFFFh (External RAM in cartridge)
     wram_0: [u8; 0x1000],                       //1KB  -> C000h – CFFFh (Work RAM)
     wram_x: [u8; 0x1000],                       //1KB  -> D000h – DFFFh (Work RAM)
@@ -19,20 +18,18 @@ pub struct Memory {
     joypad: Joypad,                             //     -> FF00h         (Joypad)
     serial: SerialTransfer,                     //     -> FF01h - FF02h (Serial Transfer)
     timer: Timer,                               //     -> FF04h - FF07h
-    pub ppu: Ppu,                                   //Pixel Processing Unit. Houses most of the graphics related memory
+    pub ppu: Ppu,                               //Pixel Processing Unit. Houses most of the graphics related memory
     dma: Dma,                                   //     -> FF46h OAM DMA source address register
     io: [u8; 0x80],                             //     -> FF00h – FF7Fh (I/O ports)
     pub interrupt_handler: InterruptHandler,    //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
     hram: [u8; 0x7F],                           //     -> FF80h – FFFEh (HRAM)
-    pub game_cartridge: GameCartridge,
     dma_read_or_write: bool,
 }
 
 impl Memory {
     pub fn new() -> Self {
-        Self {
-            rom_bank_0: [0; 0x4000],   
-            rom_bank_x: [0; 0x4000],         
+        Self {      
+            game_cartridge: GameCartridge::new(),
             sram: [0; 0x2000],        
             wram_0: [0; 0x1000],       
             wram_x: [0; 0x1000],   
@@ -46,7 +43,6 @@ impl Memory {
             interrupt_handler: InterruptHandler::new(),
             dma: Dma::new(),
             hram: [0; 0x7F],
-            game_cartridge: GameCartridge::new(),
             dma_read_or_write: false,
         }
     }
@@ -58,8 +54,8 @@ impl Memory {
         }
 
         match address {
-            ROM_BANK_0_START ..= ROM_BANK_0_END => self.rom_bank_0[address as usize],
-            ROM_BANK_X_START ..= ROM_BANK_X_END => self.rom_bank_x[(address - ROM_BANK_X_START) as usize],
+            ROM_BANK_0_START ..= ROM_BANK_0_END => self.game_cartridge.read_rom_bank_0(address),
+            ROM_BANK_X_START ..= ROM_BANK_X_END => self.game_cartridge.read_rom_bank_x(address - ROM_BANK_X_START),
             VRAM_START ..= VRAM_END => {
                 if self.ppu.current_mode() != PpuMode::DrawingPixels || !self.ppu.is_active() {
                     match address {
@@ -74,13 +70,7 @@ impl Memory {
                     return 0xFF;
                 }
             },
-            SRAM_START ..= SRAM_END => {
-                if self.game_cartridge {
-                    self.sram[(address - SRAM_START) as usize]
-                } else {
-                    0xFF
-                }
-            },
+            SRAM_START ..= SRAM_END => self.game_cartridge.read_sram(address - SRAM_START),
             WRAM_0_START ..= WRAM_0_END => self.wram_0[(address - WRAM_0_START) as usize],
             WRAM_X_START ..= WRAM_X_END => self.wram_x[(address - WRAM_X_START) as usize],
             ECHO_START ..= ECHO_END => {
@@ -138,49 +128,10 @@ impl Memory {
         }
 
         match address {
-            RAM_ENABLE_START ..= RAM_ENABLE_END => self.mbc_reg.ram_enable_reg = (data_to_write & 0xF) == 0xA,
-            ROM_BANK_NUM_START ..= ROM_BANK_NUM_END => {
-                let mut rom_bank_num = data_to_write & self.mbc_reg.bank_bit_mask as u8;
-                if (data_to_write & 0x1F) == 0 {
-                    rom_bank_num = 1;
-                }
-
-                //Accounting for roms that are 1MiB+
-                if self.game_data.num_of_banks() > 32 {
-                    rom_bank_num += self.mbc_reg.ram_bank_num_reg << 5;
-                }
-
-                self.mbc_reg.rom_bank_num_reg = rom_bank_num;
-                if self.mbc_reg.banking_mode_sel_reg == 1 {
-                    match rom_bank_num {
-                        0x20 | 0x40 | 0x60 => self.rom_bank_0 = self.game_data.rom_banks[rom_bank_num as usize],
-                        _ => self.rom_bank_x = self.game_data.rom_banks[rom_bank_num as usize],
-                    }
-                } else {
-                    self.rom_bank_x = self.game_data.rom_banks[rom_bank_num as usize];
-                }
-            },
-            RAM_BANK_NUM_START ..= RAM_BANK_NUM_END => {
-                match (&self.mbc_reg.mbc_type, &self.mbc_reg.ram_size) {
-                    (MBC::RomOnly, _) => { println!("ROM ONLY MBC, NO SRAM")}
-                    (MBC::MBC1, RAMSize::_32KiB) => {
-                        if self.mbc_reg.banking_mode_sel_reg == 1 {
-                            let ram_bank_num = data_to_write & 0x3;
-                            self.game_data.ram_banks[self.mbc_reg.ram_bank_num_reg as usize] = self.sram;
-                            self.mbc_reg.ram_bank_num_reg = ram_bank_num;
-                            self.sram = self.game_data.ram_banks[ram_bank_num as usize];
-                        } else {
-                            self.game_data.ram_banks[self.mbc_reg.ram_bank_num_reg as usize] = self.sram;
-                            self.sram = self.game_data.ram_banks[0];
-                            self.mbc_reg.ram_bank_num_reg = 0;
-                        }
-                    }
-                    _ => { println!("Unimplemented MBC type {:?} and RAM Size {:?}", &self.mbc_reg.mbc_type, &self.mbc_reg.ram_size)}
-                }
-            },
-            BANKING_MODE_SEL_START ..= BANKING_MODE_SEL_END => {
-                self.mbc_reg.banking_mode_sel_reg = data_to_write & 0x1;
-            },
+            RAM_ENABLE_START ..= RAM_ENABLE_END => self.game_cartridge.write_0x0000_to_0x1fff(data_to_write),
+            ROM_BANK_NUM_START ..= ROM_BANK_NUM_END => self.game_cartridge.write_0x2000_to_0x3fff(data_to_write),
+            RAM_BANK_NUM_START ..= RAM_BANK_NUM_END => self.game_cartridge.write_0x4000_to_0x5fff(data_to_write),
+            BANKING_MODE_SEL_START ..= BANKING_MODE_SEL_END => self.game_cartridge.write_0x6000_to_0x7fff(data_to_write),
             VRAM_START ..= VRAM_END => {
                 if self.ppu.current_mode() != PpuMode::DrawingPixels || !self.ppu.is_active() {
                     match address {
@@ -193,11 +144,7 @@ impl Memory {
                     }
                 }
             },
-            SRAM_START ..= SRAM_END => {
-                if self.mbc_reg.ram_enable_reg {
-                    self.sram[(address - SRAM_START) as usize] = data_to_write
-                }
-            }
+            SRAM_START ..= SRAM_END => self.game_cartridge.write_sram(data_to_write, address - SRAM_START),
             WRAM_0_START ..= WRAM_0_END => self.wram_0[(address - WRAM_0_START) as usize] = data_to_write,
             WRAM_X_START ..= WRAM_X_END => self.wram_x[(address - WRAM_X_START) as usize] = data_to_write,
             ECHO_START ..= ECHO_END => {
@@ -229,7 +176,7 @@ impl Memory {
                     STAT_REG => self.ppu.write_stat_reg(data_to_write),
                     SCY_REG => self.ppu.write_scy_reg(data_to_write),
                     SCX_REG => self.ppu.write_scx_reg(data_to_write),
-                    LY_REG => (),   //This is read only you can't touch it
+                    LY_REG => (),   //This is read only you can't touch it...hoe
                     LYC_REG => self.ppu.write_lyc_reg(data_to_write),
                     BGP_REG => self.ppu.write_bgp_reg(data_to_write),
                     OBP0_REG => self.ppu.write_obp0_reg(data_to_write),
@@ -314,42 +261,6 @@ impl Memory {
     pub fn joypad_cycle(&mut self, window: &Window) {
         if self.joypad.cycle(window) {
             self.interrupt_handler.if_reg |= 0x10;
-        }
-    }
-
-    /**
-     * Loading the game data and setting up the rom banks
-     */
-    pub fn load_game(&mut self, cartridge: GameCartridge) {
-        self.game_cartridge = cartridge;
-        self.rom_bank_0 = self.game_cartridge.rom_banks[0];
-        self.rom_bank_x = self.game_cartridge.rom_banks[1];
-    }
-}
-
-#[derive(Debug)]
-pub struct MBCReg {
-    pub mbc_type: MBC,
-    pub ram_enable_reg: bool,
-    pub ram_bank_num_reg: u8,
-    pub rom_bank_num_reg: u8,
-    pub banking_mode_sel_reg: u8,
-    pub bank_bit_mask: u16,
-    pub ram_size: RAMSize,
-    pub rom_size: ROMSize,
-}
-
-impl MBCReg {
-    pub fn new() -> Self {
-        Self {
-            mbc_type: MBC::RomOnly,
-            ram_enable_reg: false,
-            ram_bank_num_reg: 0,
-            rom_bank_num_reg: 0,
-            banking_mode_sel_reg: 0,
-            bank_bit_mask: 0,
-            ram_size: RAMSize::_0KiB,
-            rom_size: ROMSize::_32KiB,
         }
     }
 }

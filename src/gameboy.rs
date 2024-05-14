@@ -15,7 +15,7 @@ use minifb::{Key, Scale, ScaleMode, Window, WindowOptions};
 use crate::game_cartridge::GameCartridge;
 use crate::gameboy::cpu::{Cpu, cpu_state};
 use crate::gameboy::memory::Memory;
-use crate::{game_cartridge, TestStatus};
+use crate::TestStatus;
 
 const WIDTH: usize = 160;
 const HEIGHT: usize = 144;
@@ -41,7 +41,7 @@ impl Gameboy {
         let mut game_cartridge = GameCartridge::new();
         game_cartridge.load_cartridge(rom_file_path);
 
-        self.memory.load_game(game_cartridge);
+        self.memory.game_cartridge = game_cartridge;
     }
 
     /**

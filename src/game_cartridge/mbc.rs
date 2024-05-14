@@ -1,28 +1,11 @@
-use super::enums::{RAMSize, ROMSize};
-
-/**
- * This trait gives a general approach to creating a MBC controller. These address
- * ranges will cover MBC1-MBC5. But note, not every MBC will use the exact address
- * range, they might only use part of it. So you might need to have some of these
- * functions route to the same functionalities.
- */
-pub trait MBCController {
-    fn write_0x0000_to_0x1fff(&mut self, value: u8);
-    fn write_0x2000_to_0x3fff(&mut self, value: u8);
-    fn write_0x4000_to_0x5fff(&mut self, value: u8);
-    fn write_0x6000_to_0x7fff(&mut self, value: u8);
-    fn is_ram_enabled(&self) -> bool;
-}
+use super::enums::ROMSize;
 
 #[derive(Debug)]
 pub struct MBC1 {
-    ram_enable: bool,
-    rom_bank_num: u8,
-    ram_bank_num: u8,       //This is also can be used as the upper 2bits of the rom bank number
-    banking_mode_sel: u8,
-    ram_size: RAMSize,
-    rom_size: ROMSize,
-    bank_bit_mask: u16,
+    pub ram_enable: bool,
+    pub rom_bank_num: u8,
+    pub ram_bank_num: u8,       //This is also can be used as the upper 2bits of the rom bank number
+    pub banking_mode_sel: u8,
 }
 
 impl MBC1 {
@@ -32,19 +15,14 @@ impl MBC1 {
             rom_bank_num: 0,
             ram_bank_num: 0,
             banking_mode_sel: 0,
-            ram_size: RAMSize::_0KiB,
-            rom_size: ROMSize::_32KiB,
-            bank_bit_mask: 0,
         }
     }
-}
 
-impl MBCController for MBC1 {
     /**
      * This will write to the ram enable register. Only values of 0xA written to
      * the lower 4 bits will enable the ram. Any other value will disable it
      */
-    fn write_0x0000_to_0x1fff(&mut self, value: u8) {
+    pub fn write_ram_enable(&mut self, value: u8) {
         self.ram_enable = (value & 0xF) == 0xA;
     }
 
@@ -55,8 +33,8 @@ impl MBCController for MBC1 {
      * weird quirk exists, where you can make this happen and the game cartridge's 
      * bank 0 is copied to the switchable rom bank in the Game Boy
      */
-    fn write_0x2000_to_0x3fff(&mut self, value: u8) {
-        let mut rom_bank_num = value & self.bank_bit_mask as u8;
+    pub fn write_rom_bank_num(&mut self, value: u8, bank_bit_mask: u16, rom_size: &ROMSize) {
+        let mut rom_bank_num = value & bank_bit_mask as u8;
 
         //Weird quirk always accounting for the total 5 bits
         if (value & 0x1F) == 0 {
@@ -64,30 +42,42 @@ impl MBCController for MBC1 {
         }
 
         //Accouting for roms that are 1MiB+
-        if self.rom_size >= ROMSize::_1MiB {
+        if *rom_size >= ROMSize::_1MiB {
             rom_bank_num += self.ram_bank_num << 5;
         }
 
-        // self.rom_bank_num = rom_bank_num;
-        // if self.banking_mode_sel == 1 {
-        //     match rom_bank_num {
-        //         0x20 | 0x40 | 0x60 => self.rom_bank_0 = self.game_data.rom_banks[rom_bank_num as usize],
-        //         _ => self.rom_bank_x = self.game_data.rom_banks[rom_bank_num as usize],
+        //Finalized rom bank num
+        self.rom_bank_num = rom_bank_num;
+    }
+
+    /**
+     * This will write to the second 2bit banking register. Depending on the 
+     * banking select mode, this will determine what these 2 bits do.
+     */
+    pub fn write_ram_bank_num(&mut self, value: u8) {
+        let ram_bank_num = value & 0x3;
+        self.ram_bank_num = ram_bank_num;
+
+
+        // (MBC::MBC1, RAMSize::_32KiB) => {
+        //     if self.mbc_reg.banking_mode_sel_reg == 1 {
+        //         let ram_bank_num = data_to_write & 0x3;
+        //         self.game_data.ram_banks[self.mbc_reg.ram_bank_num_reg as usize] = self.sram;
+        //         self.mbc_reg.ram_bank_num_reg = ram_bank_num;
+        //         self.sram = self.game_data.ram_banks[ram_bank_num as usize];
+        //     } else {
+        //         self.game_data.ram_banks[self.mbc_reg.ram_bank_num_reg as usize] = self.sram;
+        //         self.sram = self.game_data.ram_banks[0];
+        //         self.mbc_reg.ram_bank_num_reg = 0;
         //     }
-        // } else {
-        //     self.rom_bank_x = self.game_data.rom_banks[rom_bank_num as usize];
         // }
     }
 
-    fn write_0x4000_to_0x5fff(&mut self, value: u8) {
-        todo!()
-    }
-
-    fn write_0x6000_to_0x7fff(&mut self, value: u8) {
-        todo!()
+    pub fn write_banking_mode_sel(&mut self, value: u8) {
+        self.banking_mode_sel = value & 0x1;
     }
     
-    fn is_ram_enabled(&self) -> bool {
+    pub fn is_ram_enabled(&self) -> bool {
         return self.ram_enable;
     }
 }
@@ -103,6 +93,26 @@ impl MBC2 {
 
         }
     }
+
+    pub fn write_0x0000_to_0x1fff(&mut self, value: u8) {
+        todo!()
+    }
+
+    pub fn write_0x2000_to_0x3fff(&mut self, value: u8) {
+        todo!()
+    }
+
+    pub fn write_0x4000_to_0x5fff(&mut self, value: u8) {
+        todo!()
+    }
+
+    pub fn write_0x6000_to_0x7fff(&mut self, value: u8) {
+        todo!()
+    }
+
+    pub fn is_ram_enabled(&self) -> bool {
+        todo!()
+    }
 }
 
 #[derive(Debug)]
@@ -116,6 +126,26 @@ impl MBC3 {
             
         }
     }
+
+    pub fn write_0x0000_to_0x1fff(&mut self, value: u8) {
+        todo!()
+    }
+
+    pub fn write_0x2000_to_0x3fff(&mut self, value: u8) {
+        todo!()
+    }
+
+    pub fn write_0x4000_to_0x5fff(&mut self, value: u8) {
+        todo!()
+    }
+
+    pub fn write_0x6000_to_0x7fff(&mut self, value: u8) {
+        todo!()
+    }
+
+    pub fn is_ram_enabled(&self) -> bool {
+        todo!()
+    }
 }
 
 #[derive(Debug)]
@@ -128,5 +158,25 @@ impl MBC5 {
         Self {
             
         }
+    }
+
+    pub fn write_0x0000_to_0x1fff(&mut self, value: u8) {
+        todo!()
+    }
+
+    pub fn write_0x2000_to_0x3fff(&mut self, value: u8) {
+        todo!()
+    }
+
+    pub fn write_0x4000_to_0x5fff(&mut self, value: u8) {
+        todo!()
+    }
+
+    pub fn write_0x6000_to_0x7fff(&mut self, value: u8) {
+        todo!()
+    }
+
+    pub fn is_ram_enabled(&self) -> bool {
+        todo!()
     }
 }

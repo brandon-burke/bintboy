@@ -1,14 +1,17 @@
 pub mod mbc;
 mod enums;
 
-use std::{fs::File, io::Read};
+use std::{fs::File, io::{Read, Seek, SeekFrom}};
 
-use self::enums::{ROMSize, MBC};
+use self::enums::{RAMSize, ROMSize, MBC};
 
 pub struct GameCartridge {
     pub rom_banks: Vec<[u8; 0x4000]>,
     pub ram_banks: Vec<[u8; 0x2000]>,
     pub mbc: MBC,
+    pub rom_size: ROMSize,
+    pub ram_size: RAMSize,
+    pub bank_bit_mask: u16,
 }
 
 impl GameCartridge {
@@ -17,19 +20,175 @@ impl GameCartridge {
             rom_banks: vec![],
             ram_banks: vec![],
             mbc: MBC::RomOnly,
+            rom_size: ROMSize::_32KiB,
+            ram_size: RAMSize::_0KiB,
+            bank_bit_mask: 0,
+        }
+    }
+
+    pub fn read_rom_bank_0(&self, idx: u16) -> u8 {
+        return match &self.mbc {
+            MBC::RomOnly => self.rom_banks[0][idx as usize],
+            MBC::MBC1(mbc1) => {
+                if mbc1.banking_mode_sel == 1 {
+                    match mbc1.rom_bank_num {
+                        bank_num @ (0x20 | 0x40 | 0x60) => self.rom_banks[bank_num as usize][idx as usize],
+                        _ => self.rom_banks[0][idx as usize],
+                    }
+                } else {
+                    //Normal case if rom size is <=512KiB and ram size <=8KiB
+                    self.rom_banks[0][idx as usize]
+                }
+            },
+            MBC::MBC2(_) => todo!(),
+            MBC::MBC3(_) => todo!(),
+            MBC::MBC5(_) => todo!(),
+        };
+    }
+
+    pub fn read_rom_bank_x(&self, idx: u16) -> u8 {
+        return match &self.mbc {
+            MBC::RomOnly => self.rom_banks[1][idx as usize],
+            MBC::MBC1(mbc1) => self.rom_banks[mbc1.rom_bank_num as usize][idx as usize],
+            MBC::MBC2(mbc2) => todo!(),
+            MBC::MBC3(mbc3) => todo!(),
+            MBC::MBC5(mbc5) => todo!(),
+        };
+    }
+
+    pub fn read_sram(&self, idx: u16) -> u8 {
+        let mut value = 0xFF; //Default value if we can't read SRAM
+
+        if self.is_ram_enabled() {
+            value = match &self.mbc {
+                MBC::RomOnly => 0xFF,
+                MBC::MBC1(mbc1) => {
+                    if mbc1.banking_mode_sel == 1 {
+                        self.ram_banks[mbc1.ram_bank_num as usize][idx as usize]
+                    } else {
+                        self.ram_banks[0][idx as usize]
+                    }
+                },
+                MBC::MBC2(mbc2) => todo!(),
+                MBC::MBC3(mbc3) => todo!(),
+                MBC::MBC5(mbc5) => todo!(),
+            };
+        }
+
+        return value;
+    }
+
+    /**
+     * Writing to SRAM only if it is active. If it isn't then we don't do 
+     * anything
+     */
+    pub fn write_sram(&mut self, value: u8, idx: u16) {
+        if self.is_ram_enabled() && self.ram_size > RAMSize::_0KiB {
+            match &self.mbc {
+                MBC::RomOnly => {
+                    self.ram_banks[0][idx as usize] = value;
+                },
+                MBC::MBC1(mbc1) => {
+                    if mbc1.banking_mode_sel ==  1 {
+                        self.ram_banks[mbc1.ram_bank_num as usize][idx as usize] = value;
+                    } else {
+                        self.ram_banks[0][idx as usize] = value;
+                    } 
+                },
+                MBC::MBC2(_) => todo!(),
+                MBC::MBC3(_) => todo!(),
+                MBC::MBC5(_) => todo!(),
+            }
+        }
+    }
+
+        /**
+     *                 match (&self.mbc_reg.mbc_type, &self.mbc_reg.ram_size) {
+                    (MBC::RomOnly, _) => { println!("ROM ONLY MBC, NO SRAM")}
+                    (MBC::MBC1, RAMSize::_32KiB) => {
+                        if self.mbc_reg.banking_mode_sel_reg == 1 {
+                            let ram_bank_num = data_to_write & 0x3;
+                            self.game_data.ram_banks[self.mbc_reg.ram_bank_num_reg as usize] = self.sram;
+                            self.mbc_reg.ram_bank_num_reg = ram_bank_num;
+                            self.sram = self.game_data.ram_banks[ram_bank_num as usize];
+                        } else {
+                            self.game_data.ram_banks[self.mbc_reg.ram_bank_num_reg as usize] = self.sram;
+                            self.sram = self.game_data.ram_banks[0];
+                            self.mbc_reg.ram_bank_num_reg = 0;
+                        }
+                    }
+                    _ => { println!("Unimplemented MBC type {:?} and RAM Size {:?}", &self.mbc_reg.mbc_type, &self.mbc_reg.ram_size)}
+                }
+     */
+
+
+    /**
+     * Will call the current MBC types ram enable register to see if were 
+     * allowed to write or read from SRAM
+     */
+    fn is_ram_enabled(&self) -> bool {
+        match &self.mbc {
+            MBC::RomOnly => false,
+            MBC::MBC1(mbc1) => mbc1.is_ram_enabled(),
+            MBC::MBC2(mbc2) => mbc2.is_ram_enabled(),
+            MBC::MBC3(mbc3) => mbc3.is_ram_enabled(),
+            MBC::MBC5(mbc5) => mbc5.is_ram_enabled(),
         }
     }
 
     /**
-     * 
+     * Will handle what each mbc type does writing to the address range 
+     * 0x0000 - 0x1fff
      */
-    pub fn is_ram_enabled(&self) -> bool {
-        match self.mbc {
-            MBC::RomOnly => false,
-            MBC::MBC1(_) => todo!(),
-            MBC::MBC2(_) => todo!(),
-            MBC::MBC3(_) => todo!(),
-            MBC::MBC5(_) => todo!(),
+    pub fn write_0x0000_to_0x1fff(&mut self, value: u8) {
+        match &mut self.mbc {
+            MBC::RomOnly => (),
+            MBC::MBC1(mbc1) => mbc1.write_ram_enable(value),
+            MBC::MBC2(mbc2) => mbc2.write_0x0000_to_0x1fff(value),
+            MBC::MBC3(mbc3) => mbc3.write_0x0000_to_0x1fff(value),
+            MBC::MBC5(mbc5) => mbc5.write_0x0000_to_0x1fff(value),
+        }
+    }
+
+    /**
+     * Will handle what each mbc type does writing to the address range 
+     * 0x2000 - 0x3fff
+     */
+    pub fn write_0x2000_to_0x3fff(&mut self, value: u8) {
+        match &mut self.mbc {
+            MBC::RomOnly => (),
+            MBC::MBC1(mbc1) => mbc1.write_rom_bank_num(value, self.bank_bit_mask, &self.rom_size),
+            MBC::MBC2(mbc2) => mbc2.write_0x2000_to_0x3fff(value),
+            MBC::MBC3(mbc3) => mbc3.write_0x2000_to_0x3fff(value),
+            MBC::MBC5(mbc5) => mbc5.write_0x2000_to_0x3fff(value),
+        }
+    }
+
+    /**
+     * Will handle what each mbc type does writing to the address range 
+     * 0x4000 - 0x5fff
+     */
+    pub fn write_0x4000_to_0x5fff(&mut self, value: u8) {
+        match &mut self.mbc {
+            MBC::RomOnly => (),
+            MBC::MBC1(mbc1) => mbc1.write_ram_bank_num(value),
+            MBC::MBC2(mbc2) => mbc2.write_0x4000_to_0x5fff(value),
+            MBC::MBC3(mbc3) => mbc3.write_0x4000_to_0x5fff(value),
+            MBC::MBC5(mbc5) => mbc5.write_0x4000_to_0x5fff(value),
+        }
+    }
+
+    /**
+     * Will handle what each mbc type does writing to the address range 
+     * write_0x6000 - 0x7fff
+     */
+    pub fn write_0x6000_to_0x7fff(&mut self, value: u8) {
+        match &mut self.mbc {
+            MBC::RomOnly => (),
+            MBC::MBC1(mbc1) => mbc1.write_banking_mode_sel(value),
+            MBC::MBC2(mbc2) => mbc2.write_0x6000_to_0x7fff(value),
+            MBC::MBC3(mbc3) => mbc3.write_0x6000_to_0x7fff(value),
+            MBC::MBC5(mbc5) => mbc5.write_0x6000_to_0x7fff(value),
         }
     }
 
@@ -50,12 +209,12 @@ impl GameCartridge {
 
     pub fn ram_size(&self) -> RAMSize {
         match self.rom_banks[0][0x149] {
-            0x0 => _0KiB,
+            0x0 => RAMSize::_0KiB,
             0x1 => panic!("unused ram size"),
-            0x2 => _8KiB,
-            0x3 => _32KiB,
-            0x4 => _128KiB,
-            0x5 => _64KiB,
+            0x2 => RAMSize::_8KiB,
+            0x3 => RAMSize::_32KiB,
+            0x4 => RAMSize::_128KiB,
+            0x5 => RAMSize::_64KiB,
             _ => panic!("Not of valid ram size")
         }
     }
@@ -68,6 +227,7 @@ impl GameCartridge {
             0x3 => 4,
             0x4 => 16,
             0x5 => 8,
+            num => panic!("Invalid number of ram banks read from rom: {num}"),
         }
     }
 
@@ -107,9 +267,14 @@ impl GameCartridge {
      */
     pub fn load_cartridge(&mut self, file_path: &str) {
         let mut rom_file = File::open(file_path).expect("File not found");
+        let file_size = rom_file.seek(SeekFrom::End(0)).expect("Error finding the file size");
+        let num_of_banks = file_size / 0x4000;
+
+        //Setting the file cursor back to the beginning
+        rom_file.seek(SeekFrom::Start(0)).expect("Error resetting the file");
 
         //Setting up how many 16KB banks the rom has
-        for _ in 0..self.num_of_rom_banks() {
+        for _ in 0..num_of_banks {
             self.rom_banks.push([0; 0x4000]);
         }
 
@@ -136,12 +301,16 @@ impl GameCartridge {
 
         //Setting the MBC controller type
         self.mbc = match self.rom_banks[0][0x147] {
-            0x00 => MBC::new(0),
-            0x01 ..= 0x03 => MBC::new(1),
-            0x05 ..= 0x06 => MBC::new(2),
-            0x0F ..= 0x13 => MBC::new(3),
-            0x19 ..= 0x1E => MBC::new(5),
+            0x00 => MBC::new(0),            //ROM-ONLY
+            0x01 ..= 0x03 => MBC::new(1),   //MBC1
+            0x05 ..= 0x06 => MBC::new(2),   //MBC2
+            0x0F ..= 0x13 => MBC::new(3),   //MBC3
+            0x19 ..= 0x1E => MBC::new(5),   //MBC5
             _ => panic!("Come on man I don't got time to support this MBC type"),
         };
+
+        self.ram_size = self.ram_size();
+        self.rom_size = self.rom_size();
+        self.bank_bit_mask = self.bank_bit_mask();
     }
 }
