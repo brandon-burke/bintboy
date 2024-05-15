@@ -34,7 +34,7 @@ impl MBC1 {
      * bank 0 is copied to the switchable rom bank in the Game Boy
      */
     pub fn write_rom_bank_num(&mut self, value: u8, bank_bit_mask: u16, rom_size: &ROMSize) {
-        let mut rom_bank_num = value & bank_bit_mask as u8;
+        let mut rom_bank_num = value;
 
         //Weird quirk always accounting for the total 5 bits
         if (value & 0x1F) == 0 {
