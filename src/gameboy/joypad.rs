@@ -1,7 +1,8 @@
 use minifb::{Key, Window};
+use serde::{Deserialize, Serialize};
 use crate::gameboy::binary_utils;
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 enum ButtonState {
     On,
     Off,
@@ -42,6 +43,7 @@ impl ButtonState {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Joypad {
     a_and_right: ButtonState,     //READ-ONLY
     b_and_left: ButtonState,      //READ-ONLY

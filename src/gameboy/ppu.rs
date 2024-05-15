@@ -3,17 +3,28 @@ mod registers;
 mod tile_and_sprite;
 mod pixel_fetcher;
 
+use serde::{Deserialize, Serialize};
+
 use self::pixel_fetcher::{Pixel, PixelFetcher};
 use self::registers::PpuRegisters;
 use self::enums::{PaletteColors, PpuMode, SpritePriority, SpriteScanlineVisibility, SpriteSize, State, TileDataArea};
 use self::tile_and_sprite::*;
 use crate::gameboy::constants::*;
+use serde_big_array::BigArray;
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Ppu {
+    #[serde(with = "BigArray")]
     pub tile_data_0: [Tile; 128],       //$8000–$87FF
+    #[serde(with = "BigArray")]
     pub tile_data_1: [Tile; 128],       //$8800–$8FFF
+    #[serde(with = "BigArray")]
     pub tile_data_2: [Tile; 128],       //$9000–$97FF
+    #[serde(with = "BigArray")]
     pub tile_map_0: [u8; 0x400],        //$9800-$9BFF
+    #[serde(with = "BigArray")]
     pub tile_map_1: [u8; 0x400],        //$9C00-$9FFF
+    #[serde(with = "BigArray")]
     pub oam: [Sprite; 40],              //$FE00–$FE9F (Object Attribute Table) Sprite information table
     ppu_registers: PpuRegisters,    //Houses all ppu registers
     clk_ticks: u16,                 //How many cpu ticks have gone by

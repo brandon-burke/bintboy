@@ -11,6 +11,7 @@ mod binary_utils;
 mod constants;
 
 use minifb::{Key, Scale, ScaleMode, Window, WindowOptions};
+use serde::{Deserialize, Serialize};
 
 use crate::game_cartridge::GameCartridge;
 use crate::gameboy::cpu::{Cpu, cpu_state};
@@ -20,6 +21,7 @@ use crate::TestStatus;
 const WIDTH: usize = 160;
 const HEIGHT: usize = 144;
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Gameboy {
     cpu: Cpu,
     memory: Memory,

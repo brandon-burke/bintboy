@@ -1,4 +1,6 @@
-#[derive(Clone, Copy, PartialEq, Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum SpritePriority{
     OverBg,     //Sprite should draw over background and window
     UnderBg,    //Background and window colors 1-3 are drawn over the Sprite
@@ -6,14 +8,14 @@ pub enum SpritePriority{
 
 
 /* Represents whether a sprite is mirrored or not */
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Orientation {
     Normal,
     Mirrored,
 }
 
 /* Represents the options for a palette that a sprite can use */
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum SpritePalette {
     Obp0,
     Obp1,
@@ -25,38 +27,38 @@ pub enum SpritePalette {
     Obp7,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum VramBank {
     Bank0,
     Bank1,
 }
 
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize)]
 pub enum State {
     Off,
     On,
 }
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum TileMapArea {
     _9800_9BFF,
     _9C00_9FFF,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum TileDataArea {
     _8800_97FF,
     _8000_8FFF,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum SpriteSize {
     _8x8,
     _8x16,
 }
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum PpuMode {
     Hblank,         //Mode 0
     Vblank,         //Mode 1
@@ -65,7 +67,7 @@ pub enum PpuMode {
 }
 
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum PaletteColors {
     White,      //0
     LightGrey,  //1
@@ -77,6 +79,8 @@ pub enum PaletteColors {
  * Set of states that the sprite can be in depending on the 
  * x and y position of it and where the scanline currently is
  */
+
+ #[derive(Debug, Serialize, Deserialize)]
 pub enum SpriteScanlineVisibility {
     NotInScanLine,  //The scanline doesn't over lap with the sprite at all
     NotVisible,     //The scanline does overlap w/ the sprite, but its x pos makes it not visible

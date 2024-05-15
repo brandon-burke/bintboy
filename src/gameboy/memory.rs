@@ -1,4 +1,6 @@
 use minifb::Window;
+use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 use crate::gameboy::timer::Timer;
 use crate::gameboy::joypad::Joypad;
 use crate::gameboy::serial_transfer::SerialTransfer;
@@ -8,20 +10,28 @@ use crate::gameboy::interrupt_handler::InterruptHandler;
 use crate::gameboy::constants::*;
 use crate::game_cartridge::GameCartridge;
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Memory {
     pub game_cartridge: GameCartridge,          //16KB -> 0000h – 3FFFh (Non-switchable ROM bank), 16KB -> 4000h – 7FFFh (Switchable ROM bank)
+    #[serde(with = "BigArray")]
     sram: [u8; 0x2000],                         //8KB  -> A000h – BFFFh (External RAM in cartridge)
+    #[serde(with = "BigArray")]
     wram_0: [u8; 0x1000],                       //1KB  -> C000h – CFFFh (Work RAM)
+    #[serde(with = "BigArray")]
     wram_x: [u8; 0x1000],                       //1KB  -> D000h – DFFFh (Work RAM)
+    #[serde(with = "BigArray")]
     _echo: [u8; 0x1E00],                        //     -> E000h – FDFFh (ECHO RAM) Mirror of C000h-DDFFh
+    #[serde(with = "BigArray")]
     unused: [u8; 0x60],                         //     -> FEA0h – FEFFh (Unused)
     joypad: Joypad,                             //     -> FF00h         (Joypad)
     serial: SerialTransfer,                     //     -> FF01h - FF02h (Serial Transfer)
     timer: Timer,                               //     -> FF04h - FF07h
     pub ppu: Ppu,                               //Pixel Processing Unit. Houses most of the graphics related memory
     dma: Dma,                                   //     -> FF46h OAM DMA source address register
+    #[serde(with = "BigArray")]
     io: [u8; 0x80],                             //     -> FF00h – FF7Fh (I/O ports)
     pub interrupt_handler: InterruptHandler,    //Will contain IE, IF, and IME registers (0xFFFF, 0xFF0F)
+    #[serde(with = "BigArray")]
     hram: [u8; 0x7F],                           //     -> FF80h – FFFEh (HRAM)
     dma_read_or_write: bool,
 }

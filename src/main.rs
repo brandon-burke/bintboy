@@ -1,6 +1,8 @@
 mod gameboy;
 mod game_cartridge;
 
+use std::{fs::{self, File}, io::Read};
+
 use crate::gameboy::Gameboy;
 use clap::Parser;
 
@@ -8,6 +10,7 @@ use clap::Parser;
 #[command(author, version, about, long_about = None)]
 struct Cli {
     path: String,
+    save_state: Option<String>
 }
 
 /**
@@ -27,7 +30,23 @@ struct Cli {
  */
 fn main() {
     let args = Cli::parse();
-    start_emulator(&args.path);
+
+    if let Some(file_path) = args.save_state {
+        resume_emulator(&file_path)
+    } else {
+        start_emulator(&args.path);
+    }
+}
+
+fn resume_emulator(file_path: &str) {
+    let mut rom_file = File::open(file_path).expect("File not found");
+    let mut serialized_gameboy = String::new();
+    
+    rom_file.read_to_string(&mut serialized_gameboy);
+    let mut gameboy: Gameboy = serde_json::from_str(&serialized_gameboy).unwrap();
+    gameboy.run();
+    let serialized_gameboy = serde_json::to_string(&gameboy).unwrap();
+    fs::write("savefile.txt", serialized_gameboy).expect("Unable to write file");
 }
 
 /* This is the entry point for the Game Boy emulator */
@@ -35,6 +54,9 @@ fn start_emulator(rom_file_path: &str) {
     let mut gameboy = Gameboy::new();
     gameboy.initialize(rom_file_path);
     gameboy.run();
+
+    let serialized_gameboy = serde_json::to_string(&gameboy).unwrap();
+    fs::write("savefile.txt", serialized_gameboy).expect("Unable to write file");
 }
 
 /* This is the entry point for the Game Boy emulator */

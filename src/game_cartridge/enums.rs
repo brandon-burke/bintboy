@@ -1,8 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 use super::mbc;
 
 
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum MBC {
     RomOnly,
     MBC1(mbc::MBC1),
@@ -28,7 +30,7 @@ impl MBC {
     }
 }
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum RAMSize {
     _0KiB,
     _8KiB,
@@ -37,7 +39,7 @@ pub enum RAMSize {
     _128KiB,
 }
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ROMSize {
     _32KiB,
     _64KiB,

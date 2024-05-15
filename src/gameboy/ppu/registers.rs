@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::gameboy::{ppu::enums::*, binary_utils};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PpuRegisters {
     pub lcdc: LcdcReg,      //$FF40 - LCD Control register
     pub ly: u8,             //READ-ONLY -> $FF44 - LCD y coordinate register (current horizontal line which might be able to be drawn, being drawn, or just been drawn)
@@ -63,7 +65,7 @@ impl PpuRegisters {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 /* Represents the LCD Control register (LCDC) */
 pub struct LcdcReg {
     pub lcd_ppu_enable: State,
@@ -187,7 +189,7 @@ impl LcdcReg {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StatReg {
     pub unused_bit_7: u8,
     pub lyc_int_select: State,
@@ -280,7 +282,7 @@ impl StatReg {
  * Represents a register that contains color id for palettes. This can be used 
  * for object and background palette registers
  */
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PaletteReg {
     color_id_0: PaletteColors,
     color_id_1: PaletteColors,

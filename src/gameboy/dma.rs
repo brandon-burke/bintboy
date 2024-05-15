@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Dma {
     src_address_reg: u8,            //$FF46 in memory
     current_address_offset: u8,     //Will help keep track of what address we are currently reading from and to

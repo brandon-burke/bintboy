@@ -1,6 +1,8 @@
 pub mod cpu_state;
 
 use core::panic;
+use serde::{Deserialize, Serialize};
+
 use crate::gameboy::interrupt_handler::{self, Interrupt};
 use crate::gameboy::Memory;
 use crate::gameboy::opcodes::{OPCODE_MACHINE_CYCLES, PREFIX_OPCODE_MACHINE_CYCLES};
@@ -8,7 +10,7 @@ use crate::gameboy::binary_utils::{self, split_16bit_num, build_16bit_num};
 use self::cpu_state::{CpuState, Status};
 use crate::gameboy::constants::{MACHINE_CYCLE, PREFIX_OPCODE};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Cpu {
     pub a: u8,              //Accumulator Register
     pub b: u8,              //General Purpose Register

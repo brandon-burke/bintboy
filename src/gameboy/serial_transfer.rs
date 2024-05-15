@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::gameboy::binary_utils;
 
+#[derive(Debug, Serialize, Deserialize)]
 enum ClockSpeed {
     NormalSpeed,
     DoubleSpeed,
@@ -22,6 +25,7 @@ impl ClockSpeed {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 enum ClockSelect {
     Slave,
     Master,
@@ -43,6 +47,8 @@ impl ClockSelect {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
 enum TransferStatus {
     Idle,
     RequestedOrInProgress,
@@ -64,6 +70,8 @@ impl TransferStatus {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SerialTransfer {
     sb: u8,       //$FF01 Serial Transfer register
     transfer_enable: TransferStatus,

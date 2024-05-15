@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 const MACHINE_CYCLE: u8 = 4;
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Timer {
     div_reg: u16,               // Divider Register
     tima_reg: u8,               // Timer Counter

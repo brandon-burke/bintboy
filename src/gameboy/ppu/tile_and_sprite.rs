@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::gameboy::ppu::enums::{SpritePriority, Orientation, SpritePalette, VramBank};
 use crate::gameboy::binary_utils;
 
@@ -6,7 +8,7 @@ use crate::gameboy::binary_utils;
     where each PixelRow in the array represents the data of a row of pixels
     in the Tile. arr[0] being the first row and so on
  */
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Tile {
     pub pixel_rows: [TileRow; 8]
 }
@@ -23,7 +25,7 @@ impl Tile {
  * Represents the data to create a row of pixels. In memory the lower bits
  * come first.
  */
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct TileRow {
     pub lower_bits: u8, //lsb
     pub upper_bits: u8, //msb
@@ -38,7 +40,7 @@ impl TileRow {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Sprite {
     pub y_pos: u8,
     pub x_pos: u8,

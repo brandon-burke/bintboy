@@ -1,10 +1,12 @@
 use core::panic;
 
+use serde::{Deserialize, Serialize};
+
 use crate::gameboy::binary_utils;
 
 const MACHINE_CYCLE: u8 = 4;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum Interrupt {
     VBlank,
     LcdStatus,
@@ -14,6 +16,7 @@ pub enum Interrupt {
     Idle,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct InterruptHandler {
     pub ime_flag: bool,
     pub ie_reg: u8,

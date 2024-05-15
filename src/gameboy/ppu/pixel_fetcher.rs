@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::gameboy::binary_utils;
 
 use super::{enums::{Orientation, SpritePalette, SpritePriority, SpriteSize, State, TileMapArea}, registers::PpuRegisters, Sprite, Tile};
@@ -6,6 +8,7 @@ use super::{enums::{Orientation, SpritePalette, SpritePriority, SpriteSize, Stat
  * Represents the pixel fetcher in the gameboy. It'll house all the things 
  * necessary to fetch sprite, bg, and window pixels
  */
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PixelFetcher {
     pub x_coordinate: u8,           //Gives the x TILE coordinate on the 32x32 tile map. Value between 0-31
     pub win_x_coordinate: u8,
@@ -241,7 +244,7 @@ impl PixelFetcher {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Pixel {
     pub color_id: u8,
     pub palette: Option<SpritePalette>,

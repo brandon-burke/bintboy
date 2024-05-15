@@ -3,12 +3,28 @@ mod enums;
 
 use std::{fs::File, io::{Read, Seek, SeekFrom}};
 
-use self::enums::{RAMSize, ROMSize, MBC};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+use self::enums::{RAMSize, ROMSize, MBC};
+use serde_big_array::BigArray;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Wrapper {
+    #[serde(with = "BigArray")]
+    pub arr: [u8; 0x4000],
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Wrapper2 {
+    #[serde(with = "BigArray")]
+    pub arr: [u8; 0x2000],
+}
+
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GameCartridge {
-    pub rom_banks: Vec<[u8; 0x4000]>,
-    pub ram_banks: Vec<[u8; 0x2000]>,
+    pub rom_banks: Vec<Wrapper>,
+    pub ram_banks: Vec<Wrapper2>,
     pub mbc: MBC,
     pub rom_size: ROMSize,
     pub ram_size: RAMSize,
@@ -29,31 +45,31 @@ impl GameCartridge {
 
     pub fn read_rom_bank_0(&self, idx: u16) -> u8 {
         return match &self.mbc {
-            MBC::RomOnly => self.rom_banks[0][idx as usize],
+            MBC::RomOnly => self.rom_banks[0].arr[idx as usize],
             MBC::MBC1(mbc1) => {
                 if mbc1.banking_mode_sel == 1 {
                     match mbc1.rom_bank_num {
-                        bank_num @ (0x20 | 0x40 | 0x60) => self.rom_banks[bank_num as usize][idx as usize],
-                        _ => self.rom_banks[0][idx as usize],
+                        bank_num @ (0x20 | 0x40 | 0x60) => self.rom_banks[bank_num as usize].arr[idx as usize],
+                        _ => self.rom_banks[0].arr[idx as usize],
                     }
                 } else {
                     //Normal case if rom size is <=512KiB and ram size <=8KiB
-                    self.rom_banks[0][idx as usize]
+                    self.rom_banks[0].arr[idx as usize]
                 }
             },
             MBC::MBC2(_) => todo!(),
-            MBC::MBC3(_) => self.rom_banks[0][idx as usize],
-            MBC::MBC5(_) => self.rom_banks[0][idx as usize],
+            MBC::MBC3(_) => self.rom_banks[0].arr[idx as usize],
+            MBC::MBC5(_) => self.rom_banks[0].arr[idx as usize],
         };
     }
 
     pub fn read_rom_bank_x(&self, idx: u16) -> u8 {
         return match &self.mbc {
-            MBC::RomOnly => self.rom_banks[1][idx as usize],
-            MBC::MBC1(mbc1) => self.rom_banks[mbc1.rom_bank_num as usize][idx as usize],
+            MBC::RomOnly => self.rom_banks[1].arr[idx as usize],
+            MBC::MBC1(mbc1) => self.rom_banks[mbc1.rom_bank_num as usize].arr[idx as usize],
             MBC::MBC2(mbc2) => todo!(),
-            MBC::MBC3(mbc3) => self.rom_banks[mbc3.rom_bank_num as usize][idx as usize],
-            MBC::MBC5(mbc5) => self.rom_banks[mbc5.rom_bank_num as usize][idx as usize],
+            MBC::MBC3(mbc3) => self.rom_banks[mbc3.rom_bank_num as usize].arr[idx as usize],
+            MBC::MBC5(mbc5) => self.rom_banks[mbc5.rom_bank_num as usize].arr[idx as usize],
         };
     }
 
@@ -65,9 +81,9 @@ impl GameCartridge {
                 MBC::RomOnly => 0xFF,
                 MBC::MBC1(mbc1) => {
                     if mbc1.banking_mode_sel == 1 {
-                        self.ram_banks[mbc1.ram_bank_num as usize][idx as usize]
+                        self.ram_banks[mbc1.ram_bank_num as usize].arr[idx as usize]
                     } else {
-                        self.ram_banks[0][idx as usize]
+                        self.ram_banks[0].arr[idx as usize]
                     }
                 },
                 MBC::MBC2(mbc2) => todo!(),
@@ -78,10 +94,10 @@ impl GameCartridge {
                         0xA => mbc3.rtc_hours,
                         0xB => mbc3.rtc_day_lower,
                         0xC => mbc3.rtc_day_upper,
-                        ram_bank_num => self.ram_banks[ram_bank_num as usize][idx as usize],
+                        ram_bank_num => self.ram_banks[ram_bank_num as usize].arr[idx as usize],
                     }
                 },
-                MBC::MBC5(mbc5) => self.ram_banks[mbc5.sram_bank_num as usize][idx as usize],
+                MBC::MBC5(mbc5) => self.ram_banks[mbc5.sram_bank_num as usize].arr[idx as usize],
             };
         }
 
@@ -96,13 +112,13 @@ impl GameCartridge {
         if self.is_ram_enabled() && self.ram_size > RAMSize::_0KiB {
             match &mut self.mbc {
                 MBC::RomOnly => {
-                    self.ram_banks[0][idx as usize] = value;
+                    self.ram_banks[0].arr[idx as usize] = value;
                 },
                 MBC::MBC1(mbc1) => {
                     if mbc1.banking_mode_sel ==  1 {
-                        self.ram_banks[mbc1.ram_bank_num as usize][idx as usize] = value;
+                        self.ram_banks[mbc1.ram_bank_num as usize].arr[idx as usize] = value;
                     } else {
-                        self.ram_banks[0][idx as usize] = value;
+                        self.ram_banks[0].arr[idx as usize] = value;
                     } 
                 },
                 MBC::MBC2(_) => todo!(),
@@ -113,10 +129,10 @@ impl GameCartridge {
                         0xA => mbc3.rtc_hours = value,
                         0xB => mbc3.rtc_day_lower = value,
                         0xC => mbc3.rtc_day_upper = value,
-                        ram_bank_num => self.ram_banks[ram_bank_num as usize][idx as usize] = value,
+                        ram_bank_num => self.ram_banks[ram_bank_num as usize].arr[idx as usize] = value,
                     }
                 },
-                MBC::MBC5(mbc5) => self.ram_banks[mbc5.sram_bank_num as usize][idx as usize] = value,
+                MBC::MBC5(mbc5) => self.ram_banks[mbc5.sram_bank_num as usize].arr[idx as usize] = value,
             }
         }
     }
@@ -218,7 +234,7 @@ impl GameCartridge {
     }
 
     pub fn rom_size(&self) -> ROMSize {
-        match self.rom_banks[0][0x148] {
+        match self.rom_banks[0].arr[0x148] {
             0x0 => ROMSize::_32KiB,
             0x1 => ROMSize::_64KiB,
             0x2 => ROMSize::_128KiB,
@@ -233,7 +249,7 @@ impl GameCartridge {
     }
 
     pub fn ram_size(&self) -> RAMSize {
-        match self.rom_banks[0][0x149] {
+        match self.rom_banks[0].arr[0x149] {
             0x0 => RAMSize::_0KiB,
             0x1 => panic!("unused ram size"),
             0x2 => RAMSize::_8KiB,
@@ -245,7 +261,7 @@ impl GameCartridge {
     }
 
     fn num_of_ram_banks(&self) -> u8 {
-        match self.rom_banks[0][0x149] {
+        match self.rom_banks[0].arr[0x149] {
             0x0 => 0,
             0x1 => panic!("0x1 is a unused ram size"),
             0x2 => 1,
@@ -257,7 +273,7 @@ impl GameCartridge {
     }
 
     pub fn num_of_rom_banks(&self) -> u16 {
-        match self.rom_banks[0][0x148] {
+        match self.rom_banks[0].arr[0x148] {
             0x0 => 2,
             0x1 => 4,
             0x2 => 8,
@@ -300,14 +316,14 @@ impl GameCartridge {
 
         //Setting up how many 16KB banks the rom has
         for _ in 0..num_of_banks {
-            self.rom_banks.push([0; 0x4000]);
+            self.rom_banks.push(Wrapper { arr: [0; 0x4000] });
         }
 
         //Loading all the game data into the rom banks
         let mut byte_count = 0;
         let mut bank_num = 0;
         for byte in rom_file.bytes() {
-            self.rom_banks[bank_num][byte_count] = match byte {
+            self.rom_banks[bank_num].arr[byte_count] = match byte {
                 Ok(byte_value) => byte_value,
                 Err(e) => panic!("Error reading rom on bank: {bank_num} and byte: {byte_count}\n\n {e}"),
             };
@@ -321,11 +337,11 @@ impl GameCartridge {
 
         //Creating the 8KB ram banks
         for _ in 0..self.num_of_ram_banks() {
-            self.ram_banks.push([0; 0x2000]);
+            self.ram_banks.push(Wrapper2 { arr: [0; 0x2000] });
         }
 
         //Setting the MBC controller type
-        self.mbc = match self.rom_banks[0][0x147] {
+        self.mbc = match self.rom_banks[0].arr[0x147] {
             0x00 => MBC::new(0),            //ROM-ONLY
             0x01 ..= 0x03 => MBC::new(1),   //MBC1
             0x05 ..= 0x06 => MBC::new(2),   //MBC2

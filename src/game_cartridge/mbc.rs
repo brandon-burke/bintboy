@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use super::enums::ROMSize;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MBC1 {
     pub ram_enable: bool,
     pub rom_bank_num: u8,
@@ -82,7 +84,7 @@ impl MBC1 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MBC2 {
 
 }
@@ -115,7 +117,7 @@ impl MBC2 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MBC3 {
     pub ram_and_timer_enable: bool,
     pub rom_bank_num: u8,
@@ -169,7 +171,7 @@ impl MBC3 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MBC5 {
     pub ram_enable: bool,
     pub rom_bank_num: u16,
