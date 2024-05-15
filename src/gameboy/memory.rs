@@ -129,7 +129,7 @@ impl Memory {
 
         match address {
             RAM_ENABLE_START ..= RAM_ENABLE_END => self.game_cartridge.write_0x0000_to_0x1fff(data_to_write),
-            ROM_BANK_NUM_START ..= ROM_BANK_NUM_END => self.game_cartridge.write_0x2000_to_0x3fff(data_to_write),
+            ROM_BANK_NUM_START ..= ROM_BANK_NUM_END => self.game_cartridge.write_0x2000_to_0x3fff(data_to_write, address),
             RAM_BANK_NUM_START ..= RAM_BANK_NUM_END => self.game_cartridge.write_0x4000_to_0x5fff(data_to_write),
             BANKING_MODE_SEL_START ..= BANKING_MODE_SEL_END => self.game_cartridge.write_0x6000_to_0x7fff(data_to_write),
             VRAM_START ..= VRAM_END => {

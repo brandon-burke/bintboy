@@ -5,6 +5,7 @@ use std::{fs::File, io::{Read, Seek, SeekFrom}};
 
 use self::enums::{RAMSize, ROMSize, MBC};
 
+#[derive(Debug)]
 pub struct GameCartridge {
     pub rom_banks: Vec<[u8; 0x4000]>,
     pub ram_banks: Vec<[u8; 0x2000]>,
@@ -41,8 +42,8 @@ impl GameCartridge {
                 }
             },
             MBC::MBC2(_) => todo!(),
-            MBC::MBC3(_) => todo!(),
-            MBC::MBC5(_) => todo!(),
+            MBC::MBC3(_) => self.rom_banks[0][idx as usize],
+            MBC::MBC5(_) => self.rom_banks[0][idx as usize],
         };
     }
 
@@ -51,15 +52,15 @@ impl GameCartridge {
             MBC::RomOnly => self.rom_banks[1][idx as usize],
             MBC::MBC1(mbc1) => self.rom_banks[mbc1.rom_bank_num as usize][idx as usize],
             MBC::MBC2(mbc2) => todo!(),
-            MBC::MBC3(mbc3) => todo!(),
-            MBC::MBC5(mbc5) => todo!(),
+            MBC::MBC3(mbc3) => self.rom_banks[mbc3.rom_bank_num as usize][idx as usize],
+            MBC::MBC5(mbc5) => self.rom_banks[mbc5.rom_bank_num as usize][idx as usize],
         };
     }
 
     pub fn read_sram(&self, idx: u16) -> u8 {
         let mut value = 0xFF; //Default value if we can't read SRAM
 
-        if self.is_ram_enabled() {
+        if self.is_ram_enabled() && self.ram_size > RAMSize::_0KiB {
             value = match &self.mbc {
                 MBC::RomOnly => 0xFF,
                 MBC::MBC1(mbc1) => {
@@ -70,8 +71,17 @@ impl GameCartridge {
                     }
                 },
                 MBC::MBC2(mbc2) => todo!(),
-                MBC::MBC3(mbc3) => todo!(),
-                MBC::MBC5(mbc5) => todo!(),
+                MBC::MBC3(mbc3) => {
+                    match mbc3.ram_bank_num {
+                        0x8 => mbc3.rtc_seconds,
+                        0x9 => mbc3.rtc_minutes,
+                        0xA => mbc3.rtc_hours,
+                        0xB => mbc3.rtc_day_lower,
+                        0xC => mbc3.rtc_day_upper,
+                        ram_bank_num => self.ram_banks[ram_bank_num as usize][idx as usize],
+                    }
+                },
+                MBC::MBC5(mbc5) => self.ram_banks[mbc5.sram_bank_num as usize][idx as usize],
             };
         }
 
@@ -84,7 +94,7 @@ impl GameCartridge {
      */
     pub fn write_sram(&mut self, value: u8, idx: u16) {
         if self.is_ram_enabled() && self.ram_size > RAMSize::_0KiB {
-            match &self.mbc {
+            match &mut self.mbc {
                 MBC::RomOnly => {
                     self.ram_banks[0][idx as usize] = value;
                 },
@@ -96,8 +106,17 @@ impl GameCartridge {
                     } 
                 },
                 MBC::MBC2(_) => todo!(),
-                MBC::MBC3(_) => todo!(),
-                MBC::MBC5(_) => todo!(),
+                MBC::MBC3(mbc3) => {
+                    match mbc3.ram_bank_num {
+                        0x8 => mbc3.rtc_seconds = value,
+                        0x9 => mbc3.rtc_minutes = value,
+                        0xA => mbc3.rtc_hours = value,
+                        0xB => mbc3.rtc_day_lower = value,
+                        0xC => mbc3.rtc_day_upper = value,
+                        ram_bank_num => self.ram_banks[ram_bank_num as usize][idx as usize] = value,
+                    }
+                },
+                MBC::MBC5(mbc5) => self.ram_banks[mbc5.sram_bank_num as usize][idx as usize] = value,
             }
         }
     }
@@ -131,7 +150,7 @@ impl GameCartridge {
             MBC::RomOnly => false,
             MBC::MBC1(mbc1) => mbc1.is_ram_enabled(),
             MBC::MBC2(mbc2) => mbc2.is_ram_enabled(),
-            MBC::MBC3(mbc3) => mbc3.is_ram_enabled(),
+            MBC::MBC3(mbc3) => mbc3.is_ram_and_timer_enabled(),
             MBC::MBC5(mbc5) => mbc5.is_ram_enabled(),
         }
     }
@@ -145,8 +164,8 @@ impl GameCartridge {
             MBC::RomOnly => (),
             MBC::MBC1(mbc1) => mbc1.write_ram_enable(value),
             MBC::MBC2(mbc2) => mbc2.write_0x0000_to_0x1fff(value),
-            MBC::MBC3(mbc3) => mbc3.write_0x0000_to_0x1fff(value),
-            MBC::MBC5(mbc5) => mbc5.write_0x0000_to_0x1fff(value),
+            MBC::MBC3(mbc3) => mbc3.write_ram_and_timer_enable(value),
+            MBC::MBC5(mbc5) => mbc5.write_ram_enable(value),
         }
     }
 
@@ -154,13 +173,19 @@ impl GameCartridge {
      * Will handle what each mbc type does writing to the address range 
      * 0x2000 - 0x3fff
      */
-    pub fn write_0x2000_to_0x3fff(&mut self, value: u8) {
+    pub fn write_0x2000_to_0x3fff(&mut self, value: u8, address: u16) {
         match &mut self.mbc {
             MBC::RomOnly => (),
             MBC::MBC1(mbc1) => mbc1.write_rom_bank_num(value, self.bank_bit_mask, &self.rom_size),
             MBC::MBC2(mbc2) => mbc2.write_0x2000_to_0x3fff(value),
-            MBC::MBC3(mbc3) => mbc3.write_0x2000_to_0x3fff(value),
-            MBC::MBC5(mbc5) => mbc5.write_0x2000_to_0x3fff(value),
+            MBC::MBC3(mbc3) => mbc3.write_rom_bank_num(value, self.bank_bit_mask),
+            MBC::MBC5(mbc5) => {
+                if address > 0x2FFF {
+                    mbc5.write_rom_bank_upper_bit(value, self.bank_bit_mask);
+                } else {
+                    mbc5.write_rom_bank_lower_8(value, self.bank_bit_mask);
+                }
+            },
         }
     }
 
@@ -173,8 +198,8 @@ impl GameCartridge {
             MBC::RomOnly => (),
             MBC::MBC1(mbc1) => mbc1.write_ram_bank_num(value),
             MBC::MBC2(mbc2) => mbc2.write_0x4000_to_0x5fff(value),
-            MBC::MBC3(mbc3) => mbc3.write_0x4000_to_0x5fff(value),
-            MBC::MBC5(mbc5) => mbc5.write_0x4000_to_0x5fff(value),
+            MBC::MBC3(mbc3) => mbc3.write_ram_bank_num_or_rtc_sel(value),
+            MBC::MBC5(mbc5) => mbc5.write_ram_bank_num(value),
         }
     }
 
@@ -187,8 +212,8 @@ impl GameCartridge {
             MBC::RomOnly => (),
             MBC::MBC1(mbc1) => mbc1.write_banking_mode_sel(value),
             MBC::MBC2(mbc2) => mbc2.write_0x6000_to_0x7fff(value),
-            MBC::MBC3(mbc3) => mbc3.write_0x6000_to_0x7fff(value),
-            MBC::MBC5(mbc5) => mbc5.write_0x6000_to_0x7fff(value),
+            MBC::MBC3(mbc3) => mbc3.write_latch_clock_data(value),
+            MBC::MBC5(_) => (),
         }
     }
 

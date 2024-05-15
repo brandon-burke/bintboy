@@ -41,6 +41,11 @@ impl Gameboy {
         let mut game_cartridge = GameCartridge::new();
         game_cartridge.load_cartridge(rom_file_path);
 
+        dbg!(&game_cartridge.mbc);
+        dbg!(&game_cartridge.rom_size);
+        dbg!(&game_cartridge.ram_size);
+        dbg!(&game_cartridge.bank_bit_mask);
+
         self.memory.game_cartridge = game_cartridge;
     }
 

@@ -101,6 +101,7 @@ mod tests {
                             ("test_roms/acceptance/oam_dma", "OAM_DMA TEST"), 
                             ("test_roms/acceptance/timer", "TIMER TEST"), 
                             ("test_roms/acceptance/interrupts", "INTERRUPT TEST"),
+                            ("test_roms/emulator-only/mbc5", "MBC5 TEST"),
                             ];
                             
         let mut tests = vec![];
