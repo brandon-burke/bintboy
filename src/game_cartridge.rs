@@ -3,7 +3,7 @@ mod enums;
 
 use std::{fs::File, io::{Read, Seek, SeekFrom}};
 
-use self::enums::{RAMSize, ROMSize, MBC};
+use self::enums::{RAMSize, ROMSize, MBC, NINTENDO_LOGO};
 
 #[derive(Debug)]
 pub struct GameCartridge {
@@ -13,6 +13,7 @@ pub struct GameCartridge {
     pub rom_size: ROMSize,
     pub ram_size: RAMSize,
     pub bank_bit_mask: u16,
+    pub ram_bank_bit_mask: u8,
 }
 
 impl GameCartridge {
@@ -24,6 +25,7 @@ impl GameCartridge {
             rom_size: ROMSize::_32KiB,
             ram_size: RAMSize::_0KiB,
             bank_bit_mask: 0,
+            ram_bank_bit_mask: 0,
         }
     }
 
@@ -32,8 +34,27 @@ impl GameCartridge {
             MBC::RomOnly => self.rom_banks[0][idx as usize],
             MBC::MBC1(mbc1) => {
                 if mbc1.banking_mode_sel == 1 {
-                    match mbc1.rom_bank_num {
-                        bank_num @ (0x20 | 0x40 | 0x60) => self.rom_banks[bank_num as usize][idx as usize],
+                    //We only care for the upper 2 bits coming from the ram bank
+                    //If we actually have a rom cart large enough
+                    let mut rom_bank_num = if self.rom_size >= ROMSize::_1MiB {
+                        if mbc1.is_mbc1m_cart {
+                            mbc1.ram_bank_num << 4
+                        } else {
+                            mbc1.ram_bank_num << 5
+                        }
+                    } else {
+                        0
+                    };
+
+                    rom_bank_num &= self.bank_bit_mask as u8;
+
+                    match rom_bank_num {
+                        bank_num @ (0x20 | 0x40 | 0x60) if !mbc1.is_mbc1m_cart => {
+                            self.rom_banks[bank_num as usize][idx as usize]
+                        },
+                        bank_num @ (0x10 | 0x20 | 0x30) if mbc1.is_mbc1m_cart => {
+                            self.rom_banks[bank_num as usize][idx as usize]
+                        },
                         _ => self.rom_banks[0][idx as usize],
                     }
                 } else {
@@ -50,7 +71,22 @@ impl GameCartridge {
     pub fn read_rom_bank_x(&self, idx: u16) -> u8 {
         return match &self.mbc {
             MBC::RomOnly => self.rom_banks[1][idx as usize],
-            MBC::MBC1(mbc1) => self.rom_banks[mbc1.rom_bank_num as usize][idx as usize],
+            MBC::MBC1(mbc1) => {
+                let mut rom_bank_num = mbc1.rom_bank_num;
+
+                //Accouting for roms that are 1MiB+
+                if self.rom_size >= ROMSize::_1MiB {
+                    if mbc1.is_mbc1m_cart {
+                        rom_bank_num += mbc1.ram_bank_num << 4;
+                    } else {
+                        rom_bank_num += mbc1.ram_bank_num << 5;
+                    }
+                }
+
+                rom_bank_num &= self.bank_bit_mask as u8;
+
+                self.rom_banks[rom_bank_num as usize][idx as usize]
+            },
             MBC::MBC2(mbc2) => todo!(),
             MBC::MBC3(mbc3) => self.rom_banks[mbc3.rom_bank_num as usize][idx as usize],
             MBC::MBC5(mbc5) => self.rom_banks[mbc5.rom_bank_num as usize][idx as usize],
@@ -65,7 +101,8 @@ impl GameCartridge {
                 MBC::RomOnly => 0xFF,
                 MBC::MBC1(mbc1) => {
                     if mbc1.banking_mode_sel == 1 {
-                        self.ram_banks[mbc1.ram_bank_num as usize][idx as usize]
+                        let ram_bank_num = mbc1.ram_bank_num & self.ram_bank_bit_mask;
+                        self.ram_banks[ram_bank_num as usize][idx as usize]
                     } else {
                         self.ram_banks[0][idx as usize]
                     }
@@ -100,7 +137,8 @@ impl GameCartridge {
                 },
                 MBC::MBC1(mbc1) => {
                     if mbc1.banking_mode_sel ==  1 {
-                        self.ram_banks[mbc1.ram_bank_num as usize][idx as usize] = value;
+                        let ram_bank_num = mbc1.ram_bank_num & self.ram_bank_bit_mask;
+                        self.ram_banks[ram_bank_num as usize][idx as usize] = value;
                     } else {
                         self.ram_banks[0][idx as usize] = value;
                     } 
@@ -120,26 +158,6 @@ impl GameCartridge {
             }
         }
     }
-
-        /**
-     *                 match (&self.mbc_reg.mbc_type, &self.mbc_reg.ram_size) {
-                    (MBC::RomOnly, _) => { println!("ROM ONLY MBC, NO SRAM")}
-                    (MBC::MBC1, RAMSize::_32KiB) => {
-                        if self.mbc_reg.banking_mode_sel_reg == 1 {
-                            let ram_bank_num = data_to_write & 0x3;
-                            self.game_data.ram_banks[self.mbc_reg.ram_bank_num_reg as usize] = self.sram;
-                            self.mbc_reg.ram_bank_num_reg = ram_bank_num;
-                            self.sram = self.game_data.ram_banks[ram_bank_num as usize];
-                        } else {
-                            self.game_data.ram_banks[self.mbc_reg.ram_bank_num_reg as usize] = self.sram;
-                            self.sram = self.game_data.ram_banks[0];
-                            self.mbc_reg.ram_bank_num_reg = 0;
-                        }
-                    }
-                    _ => { println!("Unimplemented MBC type {:?} and RAM Size {:?}", &self.mbc_reg.mbc_type, &self.mbc_reg.ram_size)}
-                }
-     */
-
 
     /**
      * Will call the current MBC types ram enable register to see if were 
@@ -176,7 +194,7 @@ impl GameCartridge {
     pub fn write_0x2000_to_0x3fff(&mut self, value: u8, address: u16) {
         match &mut self.mbc {
             MBC::RomOnly => (),
-            MBC::MBC1(mbc1) => mbc1.write_rom_bank_num(value, self.bank_bit_mask, &self.rom_size),
+            MBC::MBC1(mbc1) => mbc1.write_rom_bank_num(value, self.bank_bit_mask),
             MBC::MBC2(mbc2) => mbc2.write_0x2000_to_0x3fff(value),
             MBC::MBC3(mbc3) => mbc3.write_rom_bank_num(value, self.bank_bit_mask),
             MBC::MBC5(mbc5) => {
@@ -217,7 +235,7 @@ impl GameCartridge {
         }
     }
 
-    pub fn rom_size(&self) -> ROMSize {
+    fn rom_size(&self) -> ROMSize {
         match self.rom_banks[0][0x148] {
             0x0 => ROMSize::_32KiB,
             0x1 => ROMSize::_64KiB,
@@ -256,7 +274,7 @@ impl GameCartridge {
         }
     }
 
-    pub fn num_of_rom_banks(&self) -> u16 {
+    fn num_of_rom_banks(&self) -> u16 {
         match self.rom_banks[0][0x148] {
             0x0 => 2,
             0x1 => 4,
@@ -271,7 +289,7 @@ impl GameCartridge {
         }
     }
 
-    pub fn bank_bit_mask(&self) -> u16 {
+    fn bank_bit_mask(&self) -> u16 {
         match self.num_of_rom_banks() {
             2 => 0x1,
             4 => 0x3,
@@ -283,6 +301,17 @@ impl GameCartridge {
             256 => 0xFF,
             512 => 0x1FF,
             _ => panic!("Error: Unsupported number of ROM banks")
+        }
+    }
+
+    fn ram_bank_bit_mask(&self) -> u8 {
+        match self.num_of_ram_banks() {
+            0 => 0x0,
+            1 => 0x0,
+            4 => 0x3,
+            8 => 0x7,
+            16 => 0xF,
+            _ => panic!("Not a real num of ram banks come on man"),
         }
     }
 
@@ -323,19 +352,47 @@ impl GameCartridge {
         for _ in 0..self.num_of_ram_banks() {
             self.ram_banks.push([0; 0x2000]);
         }
+        
+        self.ram_size = self.ram_size();
+        self.rom_size = self.rom_size();
+        self.bank_bit_mask = self.bank_bit_mask();
+        self.ram_bank_bit_mask = self.ram_bank_bit_mask();
 
         //Setting the MBC controller type
         self.mbc = match self.rom_banks[0][0x147] {
             0x00 => MBC::new(0),            //ROM-ONLY
-            0x01 ..= 0x03 => MBC::new(1),   //MBC1
+            0x01 ..= 0x03 => {              //MBC1
+                let mut mbc1 = MBC::new(1);
+                if let MBC::MBC1(ref mut mbc1) = mbc1 {
+                    mbc1.is_mbc1m_cart = self.is_mbc1m_cart();
+                }
+                mbc1
+            },
             0x05 ..= 0x06 => MBC::new(2),   //MBC2
             0x0F ..= 0x13 => MBC::new(3),   //MBC3
             0x19 ..= 0x1E => MBC::new(5),   //MBC5
             _ => panic!("Come on man I don't got time to support this MBC type"),
         };
+    }
 
-        self.ram_size = self.ram_size();
-        self.rom_size = self.rom_size();
-        self.bank_bit_mask = self.bank_bit_mask();
+    /**
+     * Tests whether the cart is a MBC1M cart.
+     */
+    fn is_mbc1m_cart(&mut self) -> bool {
+        if self.rom_size == ROMSize::_1MiB {
+            let mut logo_idx = 0;
+            for byte in &self.rom_banks[0x10] {
+                if *byte == NINTENDO_LOGO[logo_idx] {
+                    logo_idx += 1;
+
+                    if logo_idx == NINTENDO_LOGO.len() {
+                        return true;
+                    }
+                } else {
+                    logo_idx = 0;
+                }
+            }
+        }
+        return false;
     }
 }

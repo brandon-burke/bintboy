@@ -41,11 +41,6 @@ impl Gameboy {
         let mut game_cartridge = GameCartridge::new();
         game_cartridge.load_cartridge(rom_file_path);
 
-        dbg!(&game_cartridge.mbc);
-        dbg!(&game_cartridge.rom_size);
-        dbg!(&game_cartridge.ram_size);
-        dbg!(&game_cartridge.bank_bit_mask);
-
         self.memory.game_cartridge = game_cartridge;
     }
 
@@ -113,15 +108,15 @@ impl Gameboy {
         let mut buffer = vec![0u32; WIDTH * HEIGHT];
         let mut buffer_index: usize = 0;
         let buff_max = WIDTH * HEIGHT;
-        let mut window = Self::test_initialize_window();
+        //let mut window = Self::test_initialize_window();
         self.memory.ppu.activate_ppu();
         
-        while window.is_open() && !window.is_key_down(Key::Escape) {
-            let new_size = window.get_size();
+        while true {
+            //let new_size = window.get_size();
 
             self.memory.timer_cycle();
             self.memory.dma_cycle();
-            self.memory.joypad_cycle(&window);
+            //self.memory.joypad_cycle(&window);
             if self.memory.ppu.is_active() {
                 self.memory.gpu_cycle(&mut buffer, &mut buffer_index);
             }
@@ -176,4 +171,3 @@ impl Gameboy {
     }
 
 }
-
