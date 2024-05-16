@@ -23,13 +23,13 @@ struct Wrapper2 {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GameCartridge {
-    pub rom_banks: Vec<Wrapper>,
-    pub ram_banks: Vec<Wrapper2>,
-    pub mbc: MBC,
-    pub rom_size: ROMSize,
-    pub ram_size: RAMSize,
-    pub bank_bit_mask: u16,
-    pub ram_bank_bit_mask: u8,
+    rom_banks: Vec<Wrapper>,
+    ram_banks: Vec<Wrapper2>,
+    mbc: MBC,
+    rom_size: ROMSize,
+    ram_size: RAMSize,
+    bank_bit_mask: u16,
+    ram_bank_bit_mask: u8,
 }
 
 impl GameCartridge {
@@ -397,7 +397,7 @@ impl GameCartridge {
     fn is_mbc1m_cart(&mut self) -> bool {
         if self.rom_size == ROMSize::_1MiB {
             let mut logo_idx = 0;
-            for byte in &self.rom_banks[0x10] {
+            for byte in &self.rom_banks[0x10].arr {
                 if *byte == NINTENDO_LOGO[logo_idx] {
                     logo_idx += 1;
 

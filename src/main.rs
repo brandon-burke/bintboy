@@ -1,7 +1,7 @@
 mod gameboy;
 mod game_cartridge;
 
-use std::{fs::{self, File}, io::Read};
+use std::{fs::{self, File}, io::{Read, Write}};
 
 use crate::gameboy::Gameboy;
 use clap::Parser;
@@ -44,7 +44,7 @@ fn resume_emulator(file_path: &str) {
     let mut rom_file = File::open(file_path).expect("File not found");
     let mut serialized_gameboy = String::new();
     
-    rom_file.read_to_string(&mut serialized_gameboy);
+    let _ = rom_file.read_to_string(&mut serialized_gameboy);
     let mut gameboy: Gameboy = serde_json::from_str(&serialized_gameboy).unwrap();
     gameboy.run();
     let serialized_gameboy = serde_json::to_string(&gameboy).unwrap();
@@ -57,8 +57,22 @@ fn start_emulator(rom_file_path: &str) {
     gameboy.initialize(rom_file_path);
     gameboy.run();
 
-    let serialized_gameboy = serde_json::to_string(&gameboy).unwrap();
-    fs::write("savefile.txt", serialized_gameboy).expect("Unable to write file");
+    //Ask if you would like to save the state of the game
+    //If so type the file name
+    println!("Do you want to save the state of the rom? y/n");
+    let mut user_input = String::new();
+    let _ = std::io::stdin().read_line(&mut user_input);
+
+    if user_input.trim() == "y" {
+        println!("Type the file name you want to create or overwrite");
+        user_input.clear();
+        let _ = std::io::stdin().read_line(&mut user_input);
+
+        let serialized_gameboy = serde_json::to_string(&gameboy).unwrap();
+        
+        let mut file = File::create(user_input.trim()).unwrap();
+        let _ = file.write(serialized_gameboy.as_bytes());
+    }
 }
 
 /* This is the entry point for the Game Boy emulator */
