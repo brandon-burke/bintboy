@@ -54,8 +54,28 @@ impl Gameboy {
         let buff_max = WIDTH * HEIGHT;
         let mut window = Self::initialize_window();
         self.memory.ppu.activate_ppu();
+
+        let mut toggle_2x_speed = false;
+        let mut counter = 0;
+        
         
         while window.is_open() && !window.is_key_down(Key::Escape) {
+            if window.is_key_down(Key::F) {
+                if counter == 0 {
+                    toggle_2x_speed = !toggle_2x_speed;
+                    counter = 500000;
+                    println!("Toggle2x is: {}", toggle_2x_speed);
+                }
+                counter -= 1;
+            }
+
+            if toggle_2x_speed {
+                window.limit_update_rate(Some(std::time::Duration::from_micros(8333)));
+            } else {
+                window.limit_update_rate(Some(std::time::Duration::from_micros(16666)));
+            }
+
+
             self.memory.timer_cycle();
             self.memory.dma_cycle();
             self.memory.joypad_cycle(&window);
