@@ -100,10 +100,14 @@ impl Gameboy {
         return window;
     }
     
+
+
+    
     /**
      * This is the starting point for the Game Boy. You just need to give it a
      * rom file for it to run
      */
+    #[allow(unused)]
     pub fn test_run(&mut self) -> TestStatus {
         let mut buffer = vec![0u32; WIDTH * HEIGHT];
         let mut buffer_index: usize = 0;
@@ -111,7 +115,7 @@ impl Gameboy {
         //let mut window = Self::test_initialize_window();
         self.memory.ppu.activate_ppu();
         
-        while true {
+        loop {
             //let new_size = window.get_size();
 
             self.memory.timer_cycle();
@@ -150,6 +154,7 @@ impl Gameboy {
         return TestStatus::Pass;
     }
 
+    #[allow(unused)]
     fn test_initialize_window() -> Window {
         let mut window = Window::new(
             "Noise Test - Press ESC to exit",

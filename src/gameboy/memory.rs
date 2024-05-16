@@ -9,8 +9,7 @@ use crate::gameboy::constants::*;
 use crate::game_cartridge::GameCartridge;
 
 pub struct Memory {
-    pub game_cartridge: GameCartridge,          //16KB -> 0000h – 3FFFh (Non-switchable ROM bank), 16KB -> 4000h – 7FFFh (Switchable ROM bank)
-    sram: [u8; 0x2000],                         //8KB  -> A000h – BFFFh (External RAM in cartridge)
+    pub game_cartridge: GameCartridge,          //16KB -> 0000h – 3FFFh (Non-switchable ROM bank), 16KB -> 4000h – 7FFFh (Switchable ROM bank), 8KB  -> A000h – BFFFh (External RAM in cartridge)
     wram_0: [u8; 0x1000],                       //1KB  -> C000h – CFFFh (Work RAM)
     wram_x: [u8; 0x1000],                       //1KB  -> D000h – DFFFh (Work RAM)
     _echo: [u8; 0x1E00],                        //     -> E000h – FDFFh (ECHO RAM) Mirror of C000h-DDFFh
@@ -29,8 +28,7 @@ pub struct Memory {
 impl Memory {
     pub fn new() -> Self {
         Self {      
-            game_cartridge: GameCartridge::new(),
-            sram: [0; 0x2000],        
+            game_cartridge: GameCartridge::new(),      
             wram_0: [0; 0x1000],       
             wram_x: [0; 0x1000],   
             _echo: [0; 0x1E00],                 

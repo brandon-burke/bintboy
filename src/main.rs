@@ -40,6 +40,7 @@ fn start_emulator(rom_file_path: &str) {
 }
 
 /* This is the entry point for the Game Boy emulator */
+#[allow(unused)]
 fn test_start_emulator(rom_file_path: &str) -> TestStatus {
     let mut gameboy = Gameboy::new();
     gameboy.initialize(rom_file_path);
@@ -108,7 +109,6 @@ mod tests {
                             ];
         
         let mut num_of_failures = 0;
-        //let mut tests = vec![];
         for (test_rom_folder_path, test_name) in test_roms_path_list {
             //Printing out the Test Section Name
             let msg = format!("\n{}", test_name);
@@ -121,36 +121,16 @@ mod tests {
             for rom_path in test_rom_folder {
                 let rom = rom_path.unwrap().path();
                 if rom.is_file() && rom.extension().unwrap() == "gb" {
-                    //println!("Reading {}", &path.display().to_string());
-                    let result = match test_start_emulator(&rom.display().to_string()) {
+                    match test_start_emulator(&rom.display().to_string()) {
                         TestStatus::Failed => {
                             println!("{}: {}", rom.file_name().unwrap().to_str().unwrap(), "Failed".red());
                             num_of_failures += 1;
                         },
                         TestStatus::Pass => println!("{}: {}", rom.file_name().unwrap().to_str().unwrap(), "Pass".green()),
                     };
-                    //tests.push(((rom.display().to_string(), test_name), result))
                 }
             }
         }
-
-        // let mut num_of_failures = 0;
-        // let mut test_section = String::new();
-        // for ((test, test_name), status) in tests {
-        //     if test_name != test_section {
-        //         test_section = test_name.to_owned();
-        //         let msg = format!("\nTesting {} section:", test_section);
-        //         println!("{}", msg.bright_cyan());
-        //         println!("===============================");
-        //     }
-
-        //     if status == "Failed" {
-        //         num_of_failures += 1;
-        //         println!("{}: {}", test, status.red());
-        //     } else {
-        //         println!("{}: {}", test, status.green()); 
-        //     }
-        // }
     
         if num_of_failures == 0 {
             let msg = String::from("\n*** ALL TESTS PASSED ***\n\n");
