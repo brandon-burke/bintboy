@@ -126,12 +126,24 @@ impl PixelFetcher {
         };
 
         //Figuring out what row of pixels we need to get. Accounting for flipping vertically
-        let row_idx = match sprite.y_flip {
-            Orientation::Normal => (ppu_registers.ly + 16) - sprite.y_pos,
+        let mut row_idx = match sprite.y_flip {
+            Orientation::Normal => (ppu_registers.ly + 16) - (sprite.y_pos),
             Orientation::Mirrored => {
-                7 - ((ppu_registers.ly + 16) - sprite.y_pos)
+                7 - ((ppu_registers.ly + 16) - (sprite.y_pos))
             },
         };
+
+        //Covers a case where we don't calculate the row idx correctly b/c were
+        //in 8x16 mode 
+        if row_idx > 7 {
+            row_idx = match sprite.y_flip {
+                Orientation::Normal => (ppu_registers.ly + 16) - (sprite.y_pos + 8),
+                Orientation::Mirrored => {
+                    7 - ((ppu_registers.ly + 16) - (sprite.y_pos + 8))
+                },
+            };
+        }
+
         let tile_row = tile.pixel_rows[row_idx as usize];
 
         //Now constructing the row of pixels

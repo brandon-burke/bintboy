@@ -44,6 +44,7 @@ pub enum TileMapArea {
     _9C00_9FFF,
 }
 
+#[derive(Debug)]
 pub enum TileDataArea {
     _8800_97FF,
     _8000_8FFF,
