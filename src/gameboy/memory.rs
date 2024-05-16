@@ -14,8 +14,6 @@ use crate::game_cartridge::GameCartridge;
 pub struct Memory {
     pub game_cartridge: GameCartridge,          //16KB -> 0000h – 3FFFh (Non-switchable ROM bank), 16KB -> 4000h – 7FFFh (Switchable ROM bank)
     #[serde(with = "BigArray")]
-    sram: [u8; 0x2000],                         //8KB  -> A000h – BFFFh (External RAM in cartridge)
-    #[serde(with = "BigArray")]
     wram_0: [u8; 0x1000],                       //1KB  -> C000h – CFFFh (Work RAM)
     #[serde(with = "BigArray")]
     wram_x: [u8; 0x1000],                       //1KB  -> D000h – DFFFh (Work RAM)
@@ -40,7 +38,6 @@ impl Memory {
     pub fn new() -> Self {
         Self {      
             game_cartridge: GameCartridge::new(),
-            sram: [0; 0x2000],        
             wram_0: [0; 0x1000],       
             wram_x: [0; 0x1000],   
             _echo: [0; 0x1E00],                 

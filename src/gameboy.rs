@@ -43,11 +43,6 @@ impl Gameboy {
         let mut game_cartridge = GameCartridge::new();
         game_cartridge.load_cartridge(rom_file_path);
 
-        dbg!(&game_cartridge.mbc);
-        dbg!(&game_cartridge.rom_size);
-        dbg!(&game_cartridge.ram_size);
-        dbg!(&game_cartridge.bank_bit_mask);
-
         self.memory.game_cartridge = game_cartridge;
     }
 
@@ -61,8 +56,28 @@ impl Gameboy {
         let buff_max = WIDTH * HEIGHT;
         let mut window = Self::initialize_window();
         self.memory.ppu.activate_ppu();
+
+        let mut toggle_2x_speed = false;
+        let mut counter = 0;
+        
         
         while window.is_open() && !window.is_key_down(Key::Escape) {
+            if window.is_key_down(Key::F) {
+                if counter == 0 {
+                    toggle_2x_speed = !toggle_2x_speed;
+                    counter = 500000;
+                    println!("Toggle2x is: {}", toggle_2x_speed);
+                }
+                counter -= 1;
+            }
+
+            if toggle_2x_speed {
+                window.limit_update_rate(Some(std::time::Duration::from_micros(8333)));
+            } else {
+                window.limit_update_rate(Some(std::time::Duration::from_micros(16666)));
+            }
+
+
             self.memory.timer_cycle();
             self.memory.dma_cycle();
             self.memory.joypad_cycle(&window);
@@ -107,23 +122,27 @@ impl Gameboy {
         return window;
     }
     
+
+
+    
     /**
      * This is the starting point for the Game Boy. You just need to give it a
      * rom file for it to run
      */
+    #[allow(unused)]
     pub fn test_run(&mut self) -> TestStatus {
         let mut buffer = vec![0u32; WIDTH * HEIGHT];
         let mut buffer_index: usize = 0;
         let buff_max = WIDTH * HEIGHT;
-        let mut window = Self::test_initialize_window();
+        //let mut window = Self::test_initialize_window();
         self.memory.ppu.activate_ppu();
         
-        while window.is_open() && !window.is_key_down(Key::Escape) {
-            let new_size = window.get_size();
+        loop {
+            //let new_size = window.get_size();
 
             self.memory.timer_cycle();
             self.memory.dma_cycle();
-            self.memory.joypad_cycle(&window);
+            //self.memory.joypad_cycle(&window);
             if self.memory.ppu.is_active() {
                 self.memory.gpu_cycle(&mut buffer, &mut buffer_index);
             }
@@ -157,6 +176,7 @@ impl Gameboy {
         return TestStatus::Pass;
     }
 
+    #[allow(unused)]
     fn test_initialize_window() -> Window {
         let mut window = Window::new(
             "Noise Test - Press ESC to exit",
@@ -178,4 +198,3 @@ impl Gameboy {
     }
 
 }
-

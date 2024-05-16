@@ -129,8 +129,6 @@ impl PixelFetcher {
         };
 
         //Figuring out what row of pixels we need to get. Accounting for flipping vertically
-        // dbg!(ppu_registers.ly);
-        // dbg!(sprite.y_pos);
         let mut row_idx = match sprite.y_flip {
             Orientation::Normal => (ppu_registers.ly + 16) - (sprite.y_pos),
             Orientation::Mirrored => {
