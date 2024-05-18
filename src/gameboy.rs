@@ -69,7 +69,7 @@ impl Gameboy {
                     if toggle_speed > 3 {
                         toggle_speed = 0;
                     }
-                    counter = 100000;
+                    counter = 1000000;
                     println!("Toggle speed is: {}", toggle_speed);
                 }
                 counter -= 1;

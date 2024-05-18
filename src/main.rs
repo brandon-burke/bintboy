@@ -32,45 +32,64 @@ struct Cli {
  */
 fn main() {
     let args = Cli::parse();
-
-    if let Some(file_path) = args.save_state {
-        resume_emulator(&file_path)
-    } else {
-        start_emulator(&args.path);
-    }
-}
-
-fn resume_emulator(file_path: &str) {
-    let mut rom_file = File::open(file_path).expect("File not found");
-    let mut serialized_gameboy = String::new();
-    
-    let _ = rom_file.read_to_string(&mut serialized_gameboy);
-    let mut gameboy: Gameboy = serde_json::from_str(&serialized_gameboy).unwrap();
-    gameboy.run();
-    let serialized_gameboy = serde_json::to_string(&gameboy).unwrap();
-    fs::write("savefile.txt", serialized_gameboy).expect("Unable to write file");
+    start_emulator(&args.path, args.save_state);
 }
 
 /* This is the entry point for the Game Boy emulator */
-fn start_emulator(rom_file_path: &str) {
-    let mut gameboy = Gameboy::new();
-    gameboy.initialize(rom_file_path);
+fn start_emulator(rom_file_path: &str, gameboy_save_state: Option<String>) {
+    let mut gameboy = match gameboy_save_state {
+        Some(ref save_state_path) => {
+            let mut save_file = File::open(save_state_path).expect("Save state file not found");
+            let mut serialized_gameboy = String::new();
+            let _ = save_file.read_to_string(&mut serialized_gameboy);
+            let gameboy: Gameboy = serde_json::from_str(&serialized_gameboy).unwrap();
+
+            gameboy
+        },
+        None => {
+            let mut gameboy = Gameboy::new();
+            gameboy.initialize(rom_file_path);
+
+            gameboy
+        },
+    };
+
+    //Start the Game Boy
     gameboy.run();
 
-    //Ask if you would like to save the state of the game
-    //If so type the file name
-    println!("Do you want to save the state of the rom? y/n");
+    //Checking if the gamer wants to save the state of their game
+    println!("Do you want to save the state of the rom? (y/n)");
     let mut user_input = String::new();
     let _ = std::io::stdin().read_line(&mut user_input);
-
     if user_input.trim() == "y" {
-        println!("Type the file name you want to create or overwrite");
-        user_input.clear();
-        let _ = std::io::stdin().read_line(&mut user_input);
+        //Seeing if the gamer wants to use the same save file if they provided one
+        let use_existing_save_file = match gameboy_save_state {
+            Some(ref save_state_path) => {
+                println!("Do you want overwrite your existing save file named {} (y/n)", save_state_path);
+                user_input.clear();
+                let _ = std::io::stdin().read_line(&mut user_input);
+                if user_input.trim() == "y" {
+                    true
+                } else {
+                    false
+                }
+            },
+            None => false,
+        };
+
+
+        let save_file_path = if use_existing_save_file {
+            gameboy_save_state.unwrap()
+        } else {
+            println!("Type the file name you want to create or overwrite");
+            user_input.clear();
+            let _ = std::io::stdin().read_line(&mut user_input);
+
+            user_input
+        };
 
         let serialized_gameboy = serde_json::to_string(&gameboy).unwrap();
-        
-        let mut file = File::create(user_input.trim()).unwrap();
+        let mut file = File::create(save_file_path.trim()).unwrap();
         let _ = file.write(serialized_gameboy.as_bytes());
     }
 }
