@@ -14,15 +14,21 @@ struct Wrapper {
     pub arr: [u8; 0x4000],
 }
 
+impl Default for Wrapper {
+    fn default() -> Self {
+        Self { arr: [0; 0x4000] }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Wrapper2 {
     #[serde(with = "BigArray")]
     pub arr: [u8; 0x2000],
 }
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GameCartridge {
+    #[serde(skip)]
     rom_banks: Vec<Wrapper>,
     ram_banks: Vec<Wrapper2>,
     mbc: MBC,
@@ -389,6 +395,36 @@ impl GameCartridge {
             0x19 ..= 0x1E => MBC::new(5),   //MBC5
             _ => panic!("Come on man I don't got time to support this MBC type"),
         };
+    }
+
+    pub fn load_rom_only(&mut self, file_path: &str) {
+        let mut rom_file = File::open(file_path).expect("File not found");
+        let file_size = rom_file.seek(SeekFrom::End(0)).expect("Error finding the file size");
+        let num_of_banks = file_size / 0x4000;
+
+        //Setting the file cursor back to the beginning
+        rom_file.seek(SeekFrom::Start(0)).expect("Error resetting the file");
+
+        //Setting up how many 16KB banks the rom has
+        for _ in 0..num_of_banks {
+            self.rom_banks.push(Wrapper { arr: [0; 0x4000] });
+        }
+
+        //Loading all the game data into the rom banks
+        let mut byte_count = 0;
+        let mut bank_num = 0;
+        for byte in rom_file.bytes() {
+            self.rom_banks[bank_num].arr[byte_count] = match byte {
+                Ok(byte_value) => byte_value,
+                Err(e) => panic!("Error reading rom on bank: {bank_num} and byte: {byte_count}\n\n {e}"),
+            };
+
+            byte_count += 1;
+            if byte_count == 0x4000 {
+                byte_count = 0;
+                bank_num += 1;
+            }
+        }
     }
 
     /**

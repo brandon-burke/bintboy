@@ -1,7 +1,7 @@
 mod gameboy;
 mod game_cartridge;
 
-use std::{fs::{self, File}, io::{Read, Write}};
+use std::{collections::btree_map, fs::{self, File}, io::{Read, Write}};
 
 use crate::gameboy::Gameboy;
 use clap::Parser;
@@ -24,7 +24,7 @@ struct Cli {
  * -Remember to remove all the unused linting (#![allow(dead_code)])
  * -NOT IMPLEMENTING THE MBC ENTIRELY
  * -Not making mbc1m its own struct. Because right now we have to do a comparison any time you write 
- * -MBC3's timer isn't really implemented
+ * -MBC3's timer isn't really implemented 
  */
 
 /**
@@ -39,10 +39,14 @@ fn main() {
 fn start_emulator(rom_file_path: &str, gameboy_save_state: Option<String>) {
     let mut gameboy = match gameboy_save_state {
         Some(ref save_state_path) => {
-            let mut save_file = File::open(save_state_path).expect("Save state file not found");
-            let mut serialized_gameboy = String::new();
-            let _ = save_file.read_to_string(&mut serialized_gameboy);
-            let gameboy: Gameboy = serde_json::from_str(&serialized_gameboy).unwrap();
+            let save_file = File::open(save_state_path).expect("Save state file not found");
+            let mut deserialized_gameboy: Vec<u8> = vec![];
+            for byte in save_file.bytes() {
+                deserialized_gameboy.push(byte.unwrap());
+            }
+            let mut gameboy: Gameboy = bincode::deserialize(&deserialized_gameboy).unwrap();
+
+            gameboy.initialize_rom_only(rom_file_path);
 
             gameboy
         },
@@ -88,9 +92,10 @@ fn start_emulator(rom_file_path: &str, gameboy_save_state: Option<String>) {
             user_input
         };
 
-        let serialized_gameboy = serde_json::to_string(&gameboy).unwrap();
+        //let serialized_gameboy = serde_json::to_string(&gameboy).unwrap();
+        let serialized_gameboy = bincode::serialize(&gameboy).unwrap();
         let mut file = File::create(save_file_path.trim()).unwrap();
-        let _ = file.write(serialized_gameboy.as_bytes());
+        let _ = file.write(&serialized_gameboy);
     }
 }
 

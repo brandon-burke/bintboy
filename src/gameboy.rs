@@ -47,6 +47,15 @@ impl Gameboy {
     }
 
     /**
+     * Loading only the rom cartridge. This is mainly used when they loaded from
+     * a save state since we don't serialized the game rom to lower the save 
+     * state file size
+     */
+    pub fn initialize_rom_only(&mut self, rom_file_path: &str) {
+        self.memory.game_cartridge.load_rom_only(rom_file_path);
+    }
+
+    /**
      * This is the starting point for the Game Boy. You just need to give it a
      * rom file for it to run
      */
