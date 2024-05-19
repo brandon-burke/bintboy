@@ -1,7 +1,7 @@
 mod gameboy;
 mod game_cartridge;
 
-use std::{collections::btree_map, fs::{self, File}, io::{Read, Write}};
+use std::{fs::File, io::{Read, Write}};
 
 use crate::gameboy::Gameboy;
 use clap::Parser;
@@ -43,7 +43,7 @@ fn start_emulator(rom_file_path: &str, gameboy_save_state: Option<String>) {
             let mut deserialized_gameboy: Vec<u8> = vec![];
             for byte in save_file.bytes() {
                 deserialized_gameboy.push(byte.unwrap());
-            }
+            } 
             let mut gameboy: Gameboy = bincode::deserialize(&deserialized_gameboy).unwrap();
 
             gameboy.initialize_rom_only(rom_file_path);

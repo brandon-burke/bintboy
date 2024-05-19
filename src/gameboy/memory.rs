@@ -18,8 +18,6 @@ pub struct Memory {
     #[serde(with = "BigArray")]
     wram_x: [u8; 0x1000],                       //1KB  -> D000h – DFFFh (Work RAM)
     #[serde(with = "BigArray")]
-    _echo: [u8; 0x1E00],                        //     -> E000h – FDFFh (ECHO RAM) Mirror of C000h-DDFFh
-    #[serde(with = "BigArray")]
     unused: [u8; 0x60],                         //     -> FEA0h – FEFFh (Unused)
     joypad: Joypad,                             //     -> FF00h         (Joypad)
     serial: SerialTransfer,                     //     -> FF01h - FF02h (Serial Transfer)
@@ -39,8 +37,7 @@ impl Memory {
         Self {      
             game_cartridge: GameCartridge::new(),
             wram_0: [0; 0x1000],       
-            wram_x: [0; 0x1000],   
-            _echo: [0; 0x1E00],                 
+            wram_x: [0; 0x1000], 
             unused: [0; 0x60],
             joypad: Joypad::new(),
             serial: SerialTransfer::new(),
