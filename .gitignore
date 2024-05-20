@@ -1,0 +1,4 @@
+*.gb
+target/
+.idea/
+.vscode/
